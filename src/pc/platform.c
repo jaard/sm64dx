@@ -301,7 +301,16 @@ const char *sys_user_path(void) {
     static char path[SYS_MAX_PATH] = { 0 };
     if ('\0' != path[0]) { return path; }
 
-    char const *subdirs[] = { "sm64coopdx", "sm64ex-coop", "sm64coopdx", NULL };
+    char const *subdirs[] = {
+#ifdef COOPDX_SOLO
+        "sm64coopdx-solo",
+#else
+        "sm64coopdx",
+        "sm64ex-coop",
+        "sm64coopdx",
+#endif
+        NULL
+    };
 
     char *sdlPath = NULL;
     for (int i = 0; NULL != subdirs[i]; i++)

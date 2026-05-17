@@ -12,6 +12,27 @@
 
 struct CLIOptions gCLIOpts;
 
+#ifdef COOPDX_SOLO
+static void apply_solo_cli_defaults(void) {
+    gCLIOpts.skipUpdateCheck = true;
+    gCLIOpts.noDiscord = true;
+    gCLIOpts.disableMods = true;
+    gCLIOpts.network = NT_NONE;
+    gCLIOpts.networkPort = 0;
+    gCLIOpts.coopnet = false;
+    gCLIOpts.playerCount = 1;
+    memset(gCLIOpts.joinIp, 0, sizeof(gCLIOpts.joinIp));
+    memset(gCLIOpts.coopnetPassword, 0, sizeof(gCLIOpts.coopnetPassword));
+
+    for (int i = 0; i < gCLIOpts.enabledModsCount; i++) {
+        free(gCLIOpts.enableMods[i]);
+    }
+    free(gCLIOpts.enableMods);
+    gCLIOpts.enableMods = NULL;
+    gCLIOpts.enabledModsCount = 0;
+}
+#endif
+
 static void print_help(void) {
     printf("sm64coopdx\n");
 #if defined(_WIN32) || defined(_WIN64)
@@ -25,15 +46,19 @@ static void print_help(void) {
     printf("--width WIDTH             Sets the window width.\n");
     printf("--height HEIGHT           Sets the window height.\n");
     printf("--skip-intro              Skips the Peach and Lakitu intros when on a zero star save.\n");
+#ifndef COOPDX_SOLO
     printf("--server PORT             Starts the game and creates a new server on PORT.\n");
     printf("--client IP PORT          Starts the game and joins an existing server.\n");
     printf("--coopnet PASSWORD        Starts the game and creates a new CoopNet server.\n");
     printf("--playername PLAYERNAME   Starts the game with a specific playername.\n");
     printf("--playercount PLAYERCOUNT Starts the game with a specific player count limit.\n");
+#endif
     printf("--skip-update-check       Skips the update check when loading the game.\n");
     printf("--no-discord              Disables discord integration.\n");
     printf("--disable-mods            Disables all mods that are already enabled.\n");
+#ifndef COOPDX_SOLO
     printf("--enable-mod MODNAME      Enables a mod.\n");
+#endif
     printf("--headless                Enable Headless mode.");
 }
 
@@ -120,6 +145,10 @@ bool parse_cli_opts(int argc, char* argv[]) {
             return false;
         }
     }
+
+#ifdef COOPDX_SOLO
+    apply_solo_cli_defaults();
+#endif
 
     return true;
 }

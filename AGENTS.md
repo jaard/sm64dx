@@ -76,7 +76,7 @@ for this Makefile's GNU extensions.
 The fast first compile should avoid app packaging and online SDK dylib copying:
 
 ```sh
-gmake -j8 USE_APP=0 DISCORD_SDK=0 COOPNET=0
+gmake -j8 COOPDX_SOLO=1 USE_APP=0
 ```
 
 The current developer script,

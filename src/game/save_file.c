@@ -402,12 +402,14 @@ static void save_file_bswap(struct SaveBuffer *buf) {
     }
 }
 
-void save_file_do_save(s32 fileIndex, s8 forceSave) {
+void save_file_do_save(s32 fileIndex, UNUSED s8 forceSave) {
     if (INVALID_FILE_INDEX(fileIndex)) { return; }
+#ifndef COOPDX_SOLO
     if (gNetworkType != NT_SERVER) {
         if (gNetworkType == NT_CLIENT) { network_send_save_file(fileIndex); return; }
         else if (gNetworkType == NT_NONE && !forceSave) { return; }
     }
+#endif
 
     if (fileIndex < 0 || fileIndex >= NUM_SAVE_FILES)
         return;
@@ -418,8 +420,13 @@ void save_file_do_save(s32 fileIndex, s8 forceSave) {
                                  sizeof(gSaveBuffer.files[fileIndex][0]), SAVE_FILE_MAGIC);
 
         // Copy to backup slot
+#ifdef COOPDX_SOLO
+        bcopy(&gSaveBuffer.files[fileIndex][0], &gSaveBuffer.files[fileIndex][1],
+              sizeof(gSaveBuffer.files[fileIndex][1]));
+#else
         //bcopy(&gSaveBuffer.files[fileIndex][0], &gSaveBuffer.files[fileIndex][1],
               //sizeof(gSaveBuffer.files[fileIndex][1]));
+#endif
 
         // Write to EEPROM
         write_eeprom_savefile(fileIndex, 0, 2);

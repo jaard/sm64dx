@@ -46,6 +46,8 @@ ENHANCE_LEVEL_TEXTURES ?= 1
 DISCORD_SDK ?= 1
 # Enable CoopNet SDK (used for CoopNet server hosting)
 COOPNET ?= 1
+# Build the offline single-player product mode
+COOPDX_SOLO ?= 0
 # Enable docker build workarounds
 DOCKERBUILD ?= 0
 # Sets your optimization level for building.
@@ -204,6 +206,13 @@ endif
 #   sh - builds the 1997 Japanese Shindou version, with rumble pak support
 VERSION ?= us
 $(eval $(call validate-option,VERSION,us))
+
+$(eval $(call validate-option,COOPDX_SOLO,0 1))
+ifeq ($(COOPDX_SOLO),1)
+  DISCORD_SDK := 0
+  COOPNET := 0
+  DEFINES += COOPDX_SOLO=1
+endif
 
 # Graphics microcode used
 GRUCODE ?= f3dex2e
@@ -439,6 +448,11 @@ ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
   $(info ==== Build Options ====)
   $(info Version:        $(VERSION))
   $(info Microcode:      $(GRUCODE))
+  ifeq ($(COOPDX_SOLO),1)
+    $(info Coopdx Solo:   yes)
+  else
+    $(info Coopdx Solo:   no)
+  endif
   ifeq ($(NON_MATCHING),1)
     $(info Build Matching: no)
   else

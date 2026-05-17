@@ -448,6 +448,20 @@ void save_file_erase(s32 fileIndex) {
 }
 
 void save_file_reload(u8 loadAll) {
+#ifdef COOPDX_SOLO
+    UNUSED u8 unusedLoadAll = loadAll;
+
+    if (INVALID_FILE_INDEX(gCurrSaveFileNum - 1)) { return; }
+
+    // Solo treats slot 1 as the EEPROM backup copy, matching vanilla/sm64ex.
+    bcopy(&gSaveBuffer.files[gCurrSaveFileNum - 1][1], &gSaveBuffer.files[gCurrSaveFileNum - 1][0],
+          sizeof(gSaveBuffer.files[gCurrSaveFileNum - 1][0]));
+    bcopy(&gSaveBuffer.menuData[1], &gSaveBuffer.menuData[0], sizeof(gSaveBuffer.menuData[0]));
+
+    gMainMenuDataModified = FALSE;
+    gSaveFileModified = FALSE;
+    update_all_mario_stars();
+#else
     gSaveFileModified = TRUE;
     update_all_mario_stars();
 
@@ -456,6 +470,7 @@ void save_file_reload(u8 loadAll) {
         save_file_do_save(gCurrSaveFileNum - 1, TRUE);
         update_all_mario_stars();
     }
+#endif
 }
 
 void save_file_erase_current_backup_save(void) {
@@ -483,8 +498,6 @@ BAD_RETURN(s32) save_file_copy(s32 srcFileIndex, s32 destFileIndex) {
 }
 
 void save_file_load_all(UNUSED u8 reload) {
-    //s32 file;
-
     gMainMenuDataModified = FALSE;
     gSaveFileModified = FALSE;
 
@@ -495,9 +508,11 @@ void save_file_load_all(UNUSED u8 reload) {
     if (save_file_need_bswap(&gSaveBuffer))
         save_file_bswap(&gSaveBuffer);
 
-    // Verify the main menu data and create a backup copy if only one of the slots is valid.
-    /* Disable this so the 'backup' slot can be used
+#ifdef COOPDX_SOLO
+    s32 file;
     s32 validSlots;
+
+    // Verify the main menu data and create a backup copy if only one of the slots is valid.
     validSlots = verify_save_block_signature(&gSaveBuffer.menuData[0], sizeof(gSaveBuffer.menuData[0]), MENU_DATA_MAGIC);
     validSlots |= verify_save_block_signature(&gSaveBuffer.menuData[1], sizeof(gSaveBuffer.menuData[1]),MENU_DATA_MAGIC) << 1;
     switch (validSlots) {
@@ -528,7 +543,7 @@ void save_file_load_all(UNUSED u8 reload) {
                 break;
         }
     }
-    */
+#endif
     stub_save_file_1();
 }
 

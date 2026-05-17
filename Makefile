@@ -1584,35 +1584,36 @@ APP_RESOURCES_DIR = $(APP_CONTENTS_DIR)/Resources
 
 
 ifeq ($(OSX_BUILD),1)
-  GLEW_LIB := $(shell find $(BREW_PREFIX)/Cellar/glew | grep libGLEW.2.2.0 | sort -n | uniq)
-  SDL2_LIB := $(shell find $(BREW_PREFIX)/Cellar/sdl2 | grep libSDL2- | sort -n | uniq)
+  GLEW_LIB := $(BREW_PREFIX)/opt/glew/lib/libGLEW.dylib
+  SDL2_LIB := $(BREW_PREFIX)/opt/sdl2/lib/libSDL2-2.0.0.dylib
 endif
 
 all:
 	@if [ "$(USE_APP)" = "0" ]; then \
 		rm -rf build/us_pc/sm64coopdx.app; \
   else \
+		set -e; \
 		$(PRINT) "$(GREEN)Creating App Bundle: $(BLUE)build/us_pc/sm64coopdx.app\n"; \
 		rm -rf $(APP_DIR); \
 		rm -rf build/us_pc/sm64coopdx.app; \
 		mkdir -p $(APP_MACOS_DIR); \
 		mkdir -p $(APP_RESOURCES_DIR); \
-		mv build/us_pc/sm64coopdx $(APP_MACOS_DIR)/sm64coopdx; \
+		cp build/us_pc/sm64coopdx $(APP_MACOS_DIR)/sm64coopdx; \
     cp -r build/us_pc/mods $(APP_RESOURCES_DIR); \
     cp -r build/us_pc/lang $(APP_RESOURCES_DIR); \
     cp -r build/us_pc/dynos $(APP_RESOURCES_DIR); \
     cp -r build/us_pc/palettes $(APP_RESOURCES_DIR); \
-		cp build/us_pc/discord_game_sdk.dylib $(APP_MACOS_DIR); \
-    cp build/us_pc/libdiscord_game_sdk.dylib $(APP_MACOS_DIR); \
-    cp build/us_pc/libcoopnet.dylib $(APP_MACOS_DIR); \
-    cp build/us_pc/libjuice.1.6.2.dylib $(APP_MACOS_DIR); \
+		for dylib in discord_game_sdk.dylib libdiscord_game_sdk.dylib libcoopnet.dylib libjuice.1.6.2.dylib; do \
+			if [ -f build/us_pc/$$dylib ]; then cp build/us_pc/$$dylib $(APP_MACOS_DIR); fi; \
+		done; \
     cp $(SDL2_LIB) $(APP_MACOS_DIR)/libSDL2.dylib; \
-    install_name_tool -change $(BREW_PREFIX)/opt/sdl2/lib/libSDL2-2.0.0.dylib @executable_path/libSDL2.dylib $(APP_MACOS_DIR)/sm64coopdx; > /dev/null 2>&1 \
-		install_name_tool -id @executable_path/libSDL2.dylib $(APP_MACOS_DIR)/libSDL2.dylib; > /dev/null 2>&1 \
+    install_name_tool -change $(SDL2_LIB) @executable_path/libSDL2.dylib $(APP_MACOS_DIR)/sm64coopdx; \
+		install_name_tool -id @executable_path/libSDL2.dylib $(APP_MACOS_DIR)/libSDL2.dylib; \
     codesign --force --deep --sign - $(APP_MACOS_DIR)/libSDL2.dylib; \
     cp $(GLEW_LIB) $(APP_MACOS_DIR)/libGLEW.dylib; \
-    install_name_tool -change $(BREW_PREFIX)/opt/glew/lib/libGLEW.2.2.dylib @executable_path/libGLEW.dylib $(APP_MACOS_DIR)/sm64coopdx; > /dev/null 2>&1 \
-		install_name_tool -id @executable_path/libGLEW.dylib $(APP_MACOS_DIR)/libGLEW.dylib; > /dev/null 2>&1 \
+		GLEW_LINK_LIB=$$(otool -L $(APP_MACOS_DIR)/sm64coopdx | awk '/libGLEW/ { print $$1; exit }'); \
+    install_name_tool -change $$GLEW_LINK_LIB @executable_path/libGLEW.dylib $(APP_MACOS_DIR)/sm64coopdx; \
+		install_name_tool -id @executable_path/libGLEW.dylib $(APP_MACOS_DIR)/libGLEW.dylib; \
     codesign --force --deep --sign - $(APP_MACOS_DIR)/libGLEW.dylib; \
 		cp res/icon.icns $(APP_RESOURCES_DIR)/icon.icns; \
 		echo "APPL????" > $(APP_CONTENTS_DIR)/PkgInfo; \
@@ -1632,6 +1633,7 @@ all:
 		echo '</dict>' >> $(APP_CONTENTS_DIR)/Info.plist; \
 		echo '</plist>' >> $(APP_CONTENTS_DIR)/Info.plist; \
 		chmod +x $(APP_MACOS_DIR)/sm64coopdx; \
+		codesign --force --deep --sign - $(APP_DIR); \
 		mv $(APP_DIR) build/us_pc/; \
   fi
 

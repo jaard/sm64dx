@@ -70,11 +70,13 @@ Relevant paths:
 
 ## Build And Verification
 
-Use GNU Make. On macOS, the fast first compile should avoid app packaging and
-online SDK dylib copying:
+Use Homebrew GNU Make (`gmake`) on macOS. The Apple-provided `make` is too old
+for this Makefile's GNU extensions.
+
+The fast first compile should avoid app packaging and online SDK dylib copying:
 
 ```sh
-make -j"$(sysctl -n hw.ncpu)" USE_APP=0 DISCORD_SDK=0 COOPNET=0
+gmake -j8 USE_APP=0 DISCORD_SDK=0 COOPNET=0
 ```
 
 The current developer script,

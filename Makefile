@@ -463,8 +463,8 @@ PYTHON := python3
 ifeq ($(filter clean distclean print-%,$(MAKECMDGOALS)),)
   ifeq ($(WINDOWS_AUTO_BUILDER),0)
     $(info Building tools...)
-    DUMMY != $(MAKE) -C $(TOOLS_DIR) >&2 || echo FAIL
-      ifeq ($(DUMMY),FAIL)
+    TOOLS_BUILD_RESULT := $(shell $(MAKE) -C $(TOOLS_DIR) 1>&2 || echo FAIL)
+      ifeq ($(TOOLS_BUILD_RESULT),FAIL)
         $(error Failed to build tools)
       endif
   endif
@@ -1278,7 +1278,7 @@ endif
 ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS) $(GODDARD_SRC_DIRS) $(ULTRA_SRC_DIRS) $(ULTRA_BIN_DIRS) $(BIN_DIRS) $(TEXTURE_DIRS) $(TEXT_DIRS) $(SOUND_SAMPLE_DIRS) $(addprefix levels/,$(LEVEL_DIRS)) rsp include) $(MIO0_DIR) $(addprefix $(MIO0_DIR)/,$(VERSION)) $(SOUND_BIN_DIR) $(SOUND_BIN_DIR)/sequences/$(VERSION)
 
 # Make sure build directory exists before compiling anything
-DUMMY != mkdir -p $(ALL_DIRS)
+CREATE_BUILD_DIRS := $(shell mkdir -p $(ALL_DIRS))
 
 #==============================================================================#
 # Texture Generation                                                           #
@@ -1349,11 +1349,13 @@ endif
 
 $(BUILD_DIR)/%.table: %.aiff
 	$(call print,Extracting codebook:,$<,$@)
+	$(V)mkdir -p $(@D)
 	$(V)$(AIFF_EXTRACT_CODEBOOK) $< >$@
 	$(call print,Piping:,$<,$@.inc.c)
 
 $(BUILD_DIR)/%.aifc: $(BUILD_DIR)/%.table %.aiff
 	$(call print,Encoding VADPCM:,$<,$@)
+	$(V)mkdir -p $(@D)
 	$(V)$(VADPCM_ENC) -c $^ $@
 
 $(ENDIAN_BITWIDTH): $(TOOLS_DIR)/determine-endian-bitwidth.c

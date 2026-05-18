@@ -75,6 +75,9 @@ extern struct NetworkPlayer* gNetworkPlayerServer;
 bool network_player_name_valid(char* buffer);
 
 void network_player_init(void);
+#ifdef COOPDX_SOLO
+void network_player_init_solo_local(void);
+#endif
 void network_player_update_model(u8 localIndex);
 bool network_player_any_connected(void);
 /* |description|Gets the amount of players connected|descriptionEnd| */

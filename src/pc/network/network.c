@@ -158,6 +158,12 @@ bool network_init(enum NetworkType inNetworkType, bool reconnecting) {
     // set network type
     gNetworkType = inNetworkType;
 
+#ifdef COOPDX_SOLO
+    if (gNetworkType == NT_NONE) {
+        network_player_init_solo_local();
+    }
+#endif
+
     if (gNetworkType == NT_SERVER) {
         extern s16 gCurrSaveFileNum;
         gCurrSaveFileNum = configHostSaveSlot;
@@ -207,6 +213,15 @@ void network_on_loaded_area(void) {
     area_remove_sync_ids_clear();
     struct NetworkPlayer* np = gNetworkPlayerLocal;
     if (np != NULL) {
+#ifdef COOPDX_SOLO
+        if (gNetworkType == NT_NONE) {
+            network_player_update_course_level(np, gCurrCourseNum, gCurrActStarNum, gCurrLevelNum, gCurrAreaIndex);
+            np->currLevelSyncValid = true;
+            np->currAreaSyncValid = true;
+            gNetworkAreaSyncing = false;
+            return;
+        }
+#endif
         bool levelMatch = (np->currCourseNum == gCurrCourseNum
                            && np->currActNum == gCurrActStarNum
                            && np->currLevelNum == gCurrLevelNum);
@@ -630,10 +645,12 @@ void network_update(void) {
     }*/
 
     // Kick the player back to the Main Menu if network init failed
+#ifndef COOPDX_SOLO
     if ((gNetworkType == NT_NONE) && !gDjuiInMainMenu) {
         network_reset_reconnect_and_rehost();
         network_shutdown(true, false, false, false);
     }
+#endif
 }
 
 static inline void color_set(Color color, u8 r, u8 g, u8 b) {
@@ -786,11 +803,13 @@ void network_shutdown(bool sendLeaving, bool exiting, bool popup, bool reconnect
     init_mario_from_save_file();
 
     djui_panel_shutdown();
+#ifndef COOPDX_SOLO
     extern bool gDjuiInMainMenu;
     if (!gDjuiInMainMenu) {
         gDjuiInMainMenu = true;
         djui_panel_main_create(NULL);
     }
+#endif
     djui_lua_error_clear();
 
 #ifdef DISCORD_SDK

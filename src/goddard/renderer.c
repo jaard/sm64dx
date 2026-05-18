@@ -26,6 +26,10 @@
 
 #include "config.h"
 #include "gfx_dimensions.h"
+#ifdef COOPDX_SOLO
+#include "pc/controller/controller_mouse.h"
+#include "pc/gfx/gfx.h"
+#endif
 
 #define MAX_GD_DLS 1000
 #define OS_MESG_SI_COMPLETE 0x33333333
@@ -2353,6 +2357,68 @@ void start_view_dl(struct ObjView *view) {
     gDPPipeSync(next_gfx());
 }
 
+#ifdef COOPDX_SOLO
+static void apply_mouse_to_goddard_cursor(struct GdControl *gdctrl, OSContPad *currInputs) {
+    static bool sMouseInitialized = false;
+    static s32 sPrevMouseX = 0;
+    static s32 sPrevMouseY = 0;
+    static u32 sPrevMouseButtons = 0;
+
+    if (!mouse_init_ok || gfx_current_dimensions.width <= 0 || gfx_current_dimensions.height <= 0) {
+        return;
+    }
+
+    controller_mouse_read_window();
+
+    s32 x = mouse_window_x;
+    s32 y = mouse_window_y;
+    s32 width = gfx_current_dimensions.width;
+    s32 height = gfx_current_dimensions.height;
+    if (x < 0 || y < 0 || x > width || y > height) {
+        return;
+    }
+
+    bool mouseMoved = sMouseInitialized && (ABS(x - sPrevMouseX) > 1 || ABS(y - sPrevMouseY) > 1);
+    bool mouseClicked = (mouse_window_buttons & MOUSE_BUTTON_1) != 0;
+    bool stickActive = ABS(currInputs->stick_x) >= 6 || ABS(currInputs->stick_y) >= 6;
+
+    if (!sMouseInitialized) {
+        sMouseInitialized = true;
+        sPrevMouseX = x;
+        sPrevMouseY = y;
+        sPrevMouseButtons = mouse_window_buttons;
+        if (!mouseClicked) {
+            return;
+        }
+    }
+
+    // When the stick is active, leave Goddard's original analog cursor path in control.
+    if (stickActive && !mouseClicked) {
+        sPrevMouseX = x;
+        sPrevMouseY = y;
+        sPrevMouseButtons = mouse_window_buttons;
+        return;
+    }
+
+    if (!mouseMoved && !mouseClicked && mouse_window_buttons == sPrevMouseButtons) {
+        return;
+    }
+
+    // The Goddard title cursor is part of the fixed-30-FPS title simulation.
+    // Feed active mouse gestures here instead of DJUI's cursor path.
+    gdctrl->csrX = (x * SCREEN_WIDTH) / width;
+    gdctrl->csrY = (y * SCREEN_HEIGHT) / height;
+
+    if (mouseClicked) {
+        currInputs->button |= A_BUTTON;
+    }
+
+    sPrevMouseX = x;
+    sPrevMouseY = y;
+    sPrevMouseButtons = mouse_window_buttons;
+}
+#endif
+
 /* 251014 -> 251A1C; orig name: func_801A2844 */
 void parse_p1_controller(void) {
     struct GdControl *gdctrl = &gGdCtrl;                 // 38
@@ -2372,6 +2438,9 @@ void parse_p1_controller(void) {
 
     currInputs = &sGdContPads[0];
     prevInputs = &sPrevFrameCont[0];
+#ifdef COOPDX_SOLO
+    apply_mouse_to_goddard_cursor(gdctrl, currInputs);
+#endif
     // stick values
     gdctrl->stickXf     = currInputs->stick_x;
     gdctrl->stickYf     = currInputs->stick_y;

@@ -50,6 +50,32 @@ void network_player_init(void) {
     lag_compensation_clear();
 }
 
+#ifdef COOPDX_SOLO
+void network_player_init_solo_local(void) {
+    struct NetworkPlayer *np = &gNetworkPlayers[0];
+
+    np->connected = true;
+    np->type = NPT_LOCAL;
+    np->localIndex = 0;
+    np->globalIndex = 0;
+    np->ping = 50;
+    np->currLevelAreaSeqId = 0;
+    np->currLevelSyncValid = true;
+    np->currAreaSyncValid = true;
+    np->currPositionValid = true;
+    np->fadeOpacity = 32;
+    np->modelIndex = (configPlayerModel < CT_MAX) ? configPlayerModel : CT_MARIO;
+    np->palette = configPlayerPalette;
+    np->overrideModelIndex = np->modelIndex;
+    np->overridePalette = np->palette;
+    snprintf(np->name, MAX_CONFIG_STRING, "%s", network_player_name_valid(configPlayerName) ? configPlayerName : sDefaultPlayerName);
+    snprintf(np->discordId, sizeof(np->discordId), "%s", sDefaultDiscordId);
+
+    gNetworkPlayerLocal = np;
+    gNetworkPlayerServer = NULL;
+}
+#endif
+
 void network_player_update_model(u8 localIndex) {
     struct MarioState* m = &gMarioStates[localIndex];
     if (m == NULL) { return; }
@@ -351,7 +377,7 @@ u8 network_player_connected(enum NetworkPlayerType type, u8 globalIndex, u8 mode
     }
 
     // display connected popup
-    if (!gCurrentlyJoining && type != NPT_SERVER && (gNetworkType != NT_SERVER || type != NPT_LOCAL)) {
+    if (gNetworkType != NT_NONE && !gCurrentlyJoining && type != NPT_SERVER && (gNetworkType != NT_SERVER || type != NPT_LOCAL)) {
         construct_player_popup(np, DLANG(NOTIF, CONNECTED), NULL);
     }
     LOG_INFO("player connected, local %d, global %d", localIndex, np->globalIndex);

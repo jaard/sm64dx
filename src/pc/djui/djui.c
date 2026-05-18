@@ -26,7 +26,11 @@ struct DjuiText* gDjuiPauseOptions = NULL;
 struct DjuiText* gDjuiModReload = NULL;
 static struct DjuiText* sDjuiLuaError = NULL;
 static u32 sDjuiLuaErrorTimeout = 0;
+#ifdef COOPDX_SOLO
+bool gDjuiInMainMenu = false;
+#else
 bool gDjuiInMainMenu = true;
+#endif
 bool gDjuiInPlayerMenu = false;
 bool gDjuiDisabled = false;
 bool gDjuiShuttingDown = false;
@@ -134,11 +138,13 @@ void djui_init(void) {
 }
 
 void djui_init_late(void) {
+#ifndef COOPDX_SOLO
     djui_panel_main_create(NULL);
     if (configLanguage[0] == '\0') {
         gPanelLanguageOnStartup = true;
         djui_panel_language_create(NULL);
     }
+#endif
 
     // djui_panel_debug_create();
     djui_cursor_create();
@@ -226,7 +232,15 @@ void djui_render(void) {
         }
     }
 
+#ifdef COOPDX_SOLO
+    if (djui_panel_is_active() || gDjuiInMainMenu || gDjuiPanelPauseCreated) {
+        djui_cursor_update();
+    } else {
+        djui_cursor_set_visible(false);
+    }
+#else
     djui_cursor_update();
+#endif
     djui_base_render(&gDjuiConsole->base);
 
     // Be careful! Djui interactables update at 30hz to avoid display list corruption.

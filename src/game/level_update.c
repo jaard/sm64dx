@@ -1806,7 +1806,11 @@ s32 init_level(void) {
                 set_mario_action(gMarioState, ACT_IDLE, 0);
             } else if (!gDebugLevelSelect) {
                 if (gMarioState && gMarioState->action != ACT_UNINITIALIZED) {
+#ifdef COOPDX_SOLO
+                    bool skipIntro = (gServerSettings.skipIntro != 0);
+#else
                     bool skipIntro = (gNetworkType == NT_NONE || gServerSettings.skipIntro != 0);
+#endif
                     if (gDjuiInMainMenu && gNetworkType == NT_NONE) {
                         // pick random main menu level
                         if (configMenuRandom) {

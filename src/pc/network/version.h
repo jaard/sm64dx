@@ -18,7 +18,10 @@
 #define VERSION_REGION "US"
 #endif
 
-#ifdef DEVELOPMENT
+#ifdef COOPDX_SOLO
+#define GAME_NAME "sm64coopdx-solo"
+#define WINDOW_NAME "Super Mario 64 Solo"
+#elif defined(DEVELOPMENT)
 #define GAME_NAME "sm64coopdx-dev"
 #define WINDOW_NAME "Super Mario 64 Coop Deluxe (DEV)"
 #elif !defined(VERSION_US)

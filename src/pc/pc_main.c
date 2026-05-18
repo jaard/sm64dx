@@ -225,7 +225,51 @@ static u32 get_target_refresh_rate() {
     return get_display_refresh_rate();
 }
 
+static void produce_fixed_30_fps_title_frame_and_delay(void) {
+    f64 targetTime = sFrameTimeStart + sFrameTime;
+    f64 curTime = clock_elapsed_f64();
+
+    // The Goddard Mario-head title state mutates during 30 Hz simulation frames.
+    // In solo mode, present it as fixed 30 FPS instead of reusing coopdx's
+    // high-FPS interpolation matrices across title/menu transitions.
+    gRenderingInterpolated = false;
+    gRenderingDelta = 1.f;
+    gFramePercentage = 1.f;
+
+    gfx_start_frame();
+    send_display_list(gGfxSPTask);
+    gfx_end_frame_render();
+
+    if (configFramerateMode != RRM_UNLIMITED) {
+        curTime = clock_elapsed_f64();
+        if (curTime < targetTime) {
+            precise_delay_f64(targetTime - curTime);
+        }
+    }
+
+    gfx_display_frame();
+    sDrawnFrames++;
+
+    curTime = clock_elapsed_f64();
+    if (curTime >= sFpsTimeLast + 1.0) {
+        compute_fps(curTime);
+    }
+
+    if (curTime > sFrameTimeStart + 2 * sFrameTime) {
+        sFrameTimeStart = curTime;
+    } else {
+        sFrameTimeStart += sFrameTime;
+    }
+}
+
 void produce_interpolation_frames_and_delay(void) {
+#ifdef COOPDX_SOLO
+    if (gSkipInterpolationTitleScreen) {
+        produce_fixed_30_fps_title_frame_and_delay();
+        return;
+    }
+#endif
+
     u32 refreshRate = get_target_refresh_rate();
 
     gRenderingInterpolated = true;

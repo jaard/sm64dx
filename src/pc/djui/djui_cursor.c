@@ -194,4 +194,7 @@ void djui_cursor_create(void) {
     sMouseCursor = djui_image_create(NULL, gd_texture_hand_open, 32, 32, G_IM_FMT_RGBA, G_IM_SIZ_16b);
     djui_base_set_location(&sMouseCursor->base, 0, 0);
     djui_base_set_size(&sMouseCursor->base, 64, 64);
+#ifdef COOPDX_SOLO
+    djui_cursor_set_visible(false);
+#endif
 }

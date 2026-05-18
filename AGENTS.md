@@ -66,6 +66,13 @@ Relevant paths:
   `baserom.us.z64` in the solo app-support directory and keeping
   `rom_assets_load()` intact. A `base.zip`/external-data replacement is a later
   hardening task.
+- In `COOPDX_SOLO`, startup intentionally routes through `levels/intro` and the
+  Mario head/Press Start path before `levels/menu` file select. Keep this path
+  distinct from coopdx's multiplayer-first DJUI main menu.
+- The Goddard Mario-head title path is presented at fixed 30 FPS in solo mode
+  when `gSkipInterpolationTitleScreen` is set. Do not force it through coopdx's
+  high-FPS interpolation patches unless the title state and matrix lifetime
+  assumptions have been audited.
 - Avoid unrelated cleanup while the baseline is not buildable.
 
 ## Build And Verification

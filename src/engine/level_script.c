@@ -66,6 +66,11 @@ static s32 sRegister;
 static struct LevelCommand *sCurrentCmd;
 
 static u8 sFinishedLoadingPerm = false;
+#ifdef COOPDX_SOLO
+// Solo boots through intro/menu scripts before the permanent model bootstrap.
+// Treat MODEL_MARIO as the start of the shared permanent model load.
+static bool sSoloLoadingPermanentModels = false;
+#endif
 
 static s32 eval_script_area(s32 arg) {
     return (sWarpDest.areaIdx == arg);
@@ -414,9 +419,18 @@ static void level_cmd_free_level_pool(void) {
 
 
     if (!sFinishedLoadingPerm) {
+#ifdef COOPDX_SOLO
+        if (sSoloLoadingPermanentModels) {
+            sFinishedLoadingPerm = true;
+            sSoloLoadingPermanentModels = false;
+            // make sure we don't free the pool with the permanent models
+            gLevelPool = NULL;
+        }
+#else
         sFinishedLoadingPerm = true;
         // make sure we don't free the pool with the permanent models
         gLevelPool = NULL;
+#endif
     }
 
     for (i = 0; i < MAX_AREAS; i++) {
@@ -466,7 +480,14 @@ static void level_cmd_load_model_from_dl(void) {
     void *val3 = CMD_GET(void *, 4);
 
     u32 id = val1;
+#ifdef COOPDX_SOLO
+    enum ModelPool modelPool = sFinishedLoadingPerm || !sSoloLoadingPermanentModels
+        ? MODEL_POOL_LEVEL
+        : MODEL_POOL_PERMANENT;
+    dynos_model_load_dl(&id, modelPool, val2, val3);
+#else
     dynos_model_load_dl(&id, sFinishedLoadingPerm ? MODEL_POOL_LEVEL : MODEL_POOL_PERMANENT, val2, val3);
+#endif
 
     sCurrentCmd = CMD_NEXT;
 }
@@ -476,7 +497,17 @@ static void level_cmd_load_model_from_geo(void) {
     void *arg1 = CMD_GET(void *, 4);
 
     u32 id = arg0;
+#ifdef COOPDX_SOLO
+    if (!sFinishedLoadingPerm && arg0 == MODEL_MARIO) {
+        sSoloLoadingPermanentModels = true;
+    }
+    enum ModelPool modelPool = sFinishedLoadingPerm || !sSoloLoadingPermanentModels
+        ? MODEL_POOL_LEVEL
+        : MODEL_POOL_PERMANENT;
+    dynos_model_load_geo(&id, modelPool, arg1, true);
+#else
     dynos_model_load_geo(&id, sFinishedLoadingPerm ? MODEL_POOL_LEVEL : MODEL_POOL_PERMANENT, arg1, true);
+#endif
 
     sCurrentCmd = CMD_NEXT;
 }

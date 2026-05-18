@@ -90,6 +90,122 @@ known.
    `gNetworkPlayers[]`, `gBodyStates[]`, or `gMarioStates[]` slot?
 10. What differs from normal coopdx host mode at the same point?
 
+## Big-Picture Startup Delta
+
+The original coopdx "solo" user flow is not truly offline. A player still hosts
+a local server. That path enters `network_init(NT_SERVER)` through
+`djui_panel_do_host()`, while `COOPDX_SOLO` currently starts as `NT_NONE` and
+routes through the vanilla title/file-select flow.
+
+The key difference is not only network packets. The host path performs a bundle
+of game/session initialization before gameplay that may have rendering side
+effects.
+
+### Original Host Flow
+
+Typical original flow:
+
+1. Main process initializes FS, config, ROM assets, audio, DJUI, base network
+   player defaults.
+2. User presses Host, or CLI server path calls `djui_panel_do_host()`.
+3. `djui_panel_do_host()`:
+   - calls `stop_demo(NULL)`
+   - shuts down current DJUI panels
+   - sets `gCurrSaveFileNum = configHostSaveSlot`
+   - calls `update_all_mario_stars()`
+   - chooses and installs a network system with `network_set_system()`
+   - calls `network_init(NT_SERVER, reconnecting)`
+   - opens the mod-list panel
+   - calls `fake_lvl_init_from_save_file()`
+   - sets `gChangeLevelTransition = gLevelValues.entryLevel`
+   - copies Mario sound position if a Mario object exists
+   - plays a transition into the hosted session
+4. `network_init(NT_SERVER)`:
+   - sets `gNetworkType = NT_SERVER`
+   - sets `gCurrSaveFileNum = configHostSaveSlot`
+   - activates local mods with `mods_activate(&gLocalMods)`
+   - calls `smlua_init()`
+   - calls `dynos_behavior_hook_all_custom_behaviors()`
+   - calls `network_player_connected(NPT_LOCAL, ...)`
+   - clears `gOverrideEeprom`
+   - sets `gChangeLevelTransition = gLevelValues.entryLevel` if needed
+   - creates the chat box
+5. `fake_lvl_init_from_save_file()`:
+   - clears warp state
+   - sets `gNeverEnteredCastle` from save/skip-intro state
+   - clears credits state
+   - initializes Mario save-file state with `init_mario_from_save_file()`
+   - disables warp checkpoint
+   - restores cap/default save state
+   - selects Mario camera mode
+   - resets Yoshi/death and fades music
+   - sets `gChangeLevel = gLevelValues.entryLevel`
+
+### Current COOPDX_SOLO Flow
+
+Current solo flow:
+
+1. Main process initializes FS, config, ROM assets, audio, DJUI, base network
+   player defaults.
+2. No host panel is opened on startup.
+3. `network_init(NT_NONE, false)` runs.
+4. The solo path creates local player metadata with
+   `network_player_init_solo_local()`.
+5. The level script routes through splash, Goddard title, Press Start, and
+   file select.
+6. File select starts gameplay through vanilla-style level/script transitions,
+   not through `djui_panel_do_host()` and not through `network_init(NT_SERVER)`.
+
+### Host-Only Side Effects To Audit
+
+These are the highest-value differences to compare before another speculative
+rendering fix:
+
+- `mods_activate(&gLocalMods)`
+- `smlua_init()`
+- `dynos_behavior_hook_all_custom_behaviors()`
+- full `network_player_connected(NPT_LOCAL, ...)` setup
+- `fake_lvl_init_from_save_file()`
+- `gChangeLevel` / `gChangeLevelTransition` setup
+- `gCurrSaveFileNum = configHostSaveSlot` versus file-select-selected slot
+- `stop_demo(NULL)` / demo-state cleanup
+- `select_mario_cam_mode()`
+- `gOverrideEeprom` clearing
+- chat/modlist/DJUI side effects, likely less relevant to Mario rendering but
+  still part of the original session transition
+
+Do not blindly copy the host flow into solo. Instead, check whether each
+host-only side effect changes one of the render invariants below:
+
+- Mario object exists and is active.
+- Mario graph node area matches the active render root.
+- Mario graph node has a valid `sharedChild`.
+- Mario geo functions resolve player index 0.
+- DynOS actor/model replacement does not swap Mario to a null/error graph.
+- Camera/first-person state does not hide local Mario.
+
+### Startup Parity Experiments
+
+Use these as short-lived diagnostic experiments, not final architecture:
+
+1. In solo `NT_NONE`, call only `fake_lvl_init_from_save_file()` at the closest
+   equivalent point before entering gameplay. If Mario appears, narrow inside
+   that function.
+2. In solo `NT_NONE`, call only the safe non-network render/model setup normally
+   done before host gameplay:
+   - `mods_activate(&gLocalMods)`
+   - `smlua_init()`
+   - `dynos_behavior_hook_all_custom_behaviors()`
+   If Mario appears, inspect DynOS/model/behavior-hook assumptions.
+3. In solo `NT_NONE`, temporarily force `CT_MARIO` and bypass config character
+   selection. If Mario appears, inspect selected character model setup.
+4. In host mode, temporarily bypass network packet updates while keeping host
+   startup initialization. If Mario remains visible, the missing piece is likely
+   startup/session init rather than per-frame networking.
+
+Any permanent fix should keep `COOPDX_SOLO` offline and avoid host/server packet
+behavior.
+
 ## Instrumentation Pass 1: Mario Object Snapshot
 
 Add temporary logging after `init_single_mario()` finishes local player setup

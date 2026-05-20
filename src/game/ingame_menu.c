@@ -29,9 +29,6 @@
 #include "pc/network/network.h"
 #include "pc/djui/djui.h"
 #include "pc/djui/djui_panel.h"
-#ifdef COOPDX_SOLO
-#include "pc/djui/djui_panel_options.h"
-#endif
 #include "pc/djui/djui_panel_pause.h"
 #include "pc/utils/misc.h"
 #include "data/dynos_mgr_builtin_externs.h"
@@ -42,6 +39,9 @@
 #include "pc/lua/utils/smlua_text_utils.h"
 #include "menu/ingame_text.h"
 #include "pc/dialog_table.h"
+#ifdef COOPDX_SOLO
+#include "solo_options_menu.h"
+#endif
 
 u16 gDialogColorFadeTimer;
 s8 gLastDialogLineNum;
@@ -2649,22 +2649,6 @@ void print_hud_pause_colorful_str(void) {
     gSPDisplayList(gDisplayListHead++, dl_rgba16_text_end);
 }
 
-#ifdef COOPDX_SOLO
-static void render_pause_options_prompt(void) {
-    u8 textOptions[16] = { DIALOG_CHAR_TERMINATOR };
-    convert_string_ascii_to_sm64(textOptions, "[R] Options", false);
-
-    s16 textX = get_str_x_pos_from_center(264, textOptions, 10.0f);
-
-    gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);
-    gDPSetEnvColor(gDisplayListHead++, 0, 0, 0, 255);
-    print_generic_string(textX + 1, 211, textOptions);
-    gDPSetEnvColor(gDisplayListHead++, 255, 255, 255, 255);
-    print_generic_string(textX, 212, textOptions);
-    gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
-}
-#endif
-
 void render_pause_castle_course_stars(s16 x, s16 y, s16 fileNum, s16 courseNum) {
     s16 hasStar = 0;
 
@@ -2996,7 +2980,11 @@ s16 render_pause_courses_and_castle(void) {
             }
             break;
         case DIALOG_STATE_VERTICAL:
-            if (!gDjuiPanelPauseCreated && !gPauseMenuHidden) {
+            if (!gDjuiPanelPauseCreated && !gPauseMenuHidden
+#ifdef COOPDX_SOLO
+                && !solo_options_menu_is_open()
+#endif
+            ) {
                 shade_screen();
                 render_pause_my_score_coins();
                 render_pause_red_coins();
@@ -3037,7 +3025,11 @@ s16 render_pause_courses_and_castle(void) {
             }
             break;
         case DIALOG_STATE_HORIZONTAL:
-            if (!gDjuiPanelPauseCreated && !gPauseMenuHidden) {
+            if (!gDjuiPanelPauseCreated && !gPauseMenuHidden
+#ifdef COOPDX_SOLO
+                && !solo_options_menu_is_open()
+#endif
+            ) {
                 shade_screen();
                 print_hud_pause_colorful_str();
 
@@ -3074,17 +3066,16 @@ s16 render_pause_courses_and_castle(void) {
     if (gDjuiPanelPauseCreated && !gDjuiInPlayerMenu) { shade_screen(); }
 #ifdef COOPDX_SOLO
     if (!gDjuiPanelPauseCreated && !gPauseMenuHidden) {
-        render_pause_options_prompt();
+        if (solo_options_menu_is_open()) {
+            shade_screen();
+        }
+        solo_options_menu_update_and_render();
     }
-#endif
-    if (gPlayer1Controller->buttonPressed & R_TRIG) {
-#ifdef COOPDX_SOLO
-        djui_panel_pause_create(NULL);
-        djui_panel_options_create(NULL);
 #else
+    if (gPlayer1Controller->buttonPressed & R_TRIG) {
         djui_panel_pause_create(NULL);
-#endif
     }
+#endif
     if ((gPlayer1Controller->buttonPressed & L_TRIG) && network_allow_mod_dev_mode()) {
         network_mod_dev_mode_reload();
     }

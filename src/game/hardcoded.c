@@ -126,7 +126,11 @@ struct LevelValues gDefaultLevelValues = {
     .numCoinsToLife                   = 50,
     .wdwWaterLevelSpeed               = 10.0f,
     .useGlobalStarIds                 = FALSE,
+#ifdef COOPDX_SOLO
+    .zoomOutCameraOnPause             = FALSE,
+#else
     .zoomOutCameraOnPause             = TRUE,
+#endif
     .jrbDarkenSkybox                  = TRUE,
     .wallMaxRadius                    = 200.0f,
     .floorNormalMinY                  = 0.01,

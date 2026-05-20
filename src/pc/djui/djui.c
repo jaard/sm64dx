@@ -107,6 +107,9 @@ void djui_init(void) {
     djui_base_set_size(&gDjuiPauseOptions->base, 1.0f, 32);
     djui_base_set_location(&gDjuiPauseOptions->base, 0, 16);
     djui_text_set_alignment(gDjuiPauseOptions, DJUI_HALIGN_CENTER, DJUI_VALIGN_CENTER);
+#ifdef COOPDX_SOLO
+    djui_base_set_visible(&gDjuiPauseOptions->base, false);
+#endif
 
     gDjuiModReload = djui_text_create(&sDjuiRootBehind->base, DLANG(MISC, L_BUTTON));
     djui_text_set_drop_shadow(gDjuiModReload, 0, 0, 0, 255);

@@ -1921,7 +1921,9 @@ s32 lvl_init_from_save_file(UNUSED s16 arg0, s16 levelNum) {
     sWarpDest.type = WARP_TYPE_NOT_WARPING;
     sDelayedWarpOp = WARP_OP_NONE;
     gNeverEnteredCastle = !save_file_exists(gCurrSaveFileNum - 1) && (gServerSettings.skipIntro == 0);
+#ifndef COOPDX_SOLO
     if (gNetworkType == NT_NONE) { gNeverEnteredCastle = true; }
+#endif
 
     gCurrLevelNum = levelNum;
     gCurrCourseNum = COURSE_NONE;
@@ -2014,7 +2016,9 @@ void fake_lvl_init_from_save_file(void) {
     sWarpDest.type = WARP_TYPE_NOT_WARPING;
     sDelayedWarpOp = WARP_OP_NONE;
     gNeverEnteredCastle = !save_file_exists(gCurrSaveFileNum - 1) && (gServerSettings.skipIntro == 0);
+#ifndef COOPDX_SOLO
     if (gNetworkType == NT_NONE) { gNeverEnteredCastle = true; }
+#endif
 
     gCurrCreditsEntry = NULL;
     gMarioStates[0].specialTripleJump = false;

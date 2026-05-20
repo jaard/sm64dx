@@ -3,10 +3,8 @@
 
 #include "config.h"
 #include "game_init.h"
-#include "memory.h"
 #include "print.h"
 #include "segment2.h"
-#include "game/rendering_graph_node.h"
 
 /**
  * This file handles printing and formatting the colorful text that
@@ -24,8 +22,16 @@ struct TextLabel {
  * Stores the text to be rendered on screen
  * and how they are to be rendered.
  */
-struct TextLabel *sTextLabels[256];
-s16 sTextLabelsCount = 0;
+static struct TextLabel sTextLabels[256];
+static s16 sTextLabelsCount = 0;
+
+static struct TextLabel *alloc_text_label(void) {
+    if (sTextLabelsCount >= 256) {
+        return NULL;
+    }
+
+    return &sTextLabels[sTextLabelsCount++];
+}
 
 /**
  * Returns n to the exponent power, only for non-negative powers.
@@ -176,14 +182,14 @@ void print_text_fmt_int(s32 x, s32 y, const char *str, s32 n) {
     s32 base = 0;
     s32 len = 0;
     s32 srcIndex = 0;
+    struct TextLabel *label = alloc_text_label();
 
-    // Don't continue if there is no memory to do so.
-    if ((sTextLabels[sTextLabelsCount] = growing_pool_alloc(gDisplayListHeap, sizeof(struct TextLabel))) == NULL) {
+    if (label == NULL) {
         return;
     }
 
-    sTextLabels[sTextLabelsCount]->x = x;
-    sTextLabels[sTextLabelsCount]->y = y;
+    label->x = x;
+    label->y = y;
 
     c = str[srcIndex];
 
@@ -205,18 +211,17 @@ void print_text_fmt_int(s32 x, s32 y, const char *str, s32 n) {
 
             srcIndex++;
 
-            format_integer(n, base, sTextLabels[sTextLabelsCount]->buffer + len, &len, width, zeroPad);
+            format_integer(n, base, label->buffer + len, &len, width, zeroPad);
         } else // straight copy
         {
-            sTextLabels[sTextLabelsCount]->buffer[len] = c;
+            label->buffer[len] = c;
             len++;
             srcIndex++;
         }
         c = str[srcIndex];
     }
 
-    sTextLabels[sTextLabelsCount]->length = len;
-    sTextLabelsCount++;
+    label->length = len;
 }
 
 /**
@@ -226,27 +231,26 @@ void print_text(s32 x, s32 y, const char *str) {
     char c = 0;
     s32 length = 0;
     s32 srcIndex = 0;
+    struct TextLabel *label = alloc_text_label();
 
-    // Don't continue if there is no memory to do so.
-    if ((sTextLabels[sTextLabelsCount] = growing_pool_alloc(gDisplayListHeap, sizeof(struct TextLabel))) == NULL) {
+    if (label == NULL) {
         return;
     }
 
-    sTextLabels[sTextLabelsCount]->x = x;
-    sTextLabels[sTextLabelsCount]->y = y;
+    label->x = x;
+    label->y = y;
 
     c = str[srcIndex];
 
     // Set the array with the text to print while finding length.
     while (c != 0) {
-        sTextLabels[sTextLabelsCount]->buffer[length] = c;
+        label->buffer[length] = c;
         length++;
         srcIndex++;
         c = str[srcIndex];
     }
 
-    sTextLabels[sTextLabelsCount]->length = length;
-    sTextLabelsCount++;
+    label->length = length;
 }
 
 /**
@@ -258,9 +262,9 @@ void print_text_centered(s32 x, s32 y, const char *str) {
     UNUSED s32 unused2 = 0;
     s32 length = 0;
     s32 srcIndex = 0;
+    struct TextLabel *label = alloc_text_label();
 
-    // Don't continue if there is no memory to do so.
-    if ((sTextLabels[sTextLabelsCount] = growing_pool_alloc(gDisplayListHeap, sizeof(struct TextLabel))) == NULL) {
+    if (label == NULL) {
         return;
     }
 
@@ -268,16 +272,15 @@ void print_text_centered(s32 x, s32 y, const char *str) {
 
     // Set the array with the text to print while finding length.
     while (c != 0) {
-        sTextLabels[sTextLabelsCount]->buffer[length] = c;
+        label->buffer[length] = c;
         length++;
         srcIndex++;
         c = str[srcIndex];
     }
 
-    sTextLabels[sTextLabelsCount]->length = length;
-    sTextLabels[sTextLabelsCount]->x = x - length * 12 / 2;
-    sTextLabels[sTextLabelsCount]->y = y;
-    sTextLabelsCount++;
+    label->length = length;
+    label->x = x - length * 12 / 2;
+    label->y = y;
 }
 
 /**
@@ -444,8 +447,8 @@ void render_text_labels(void) {
     gSPDisplayList(gDisplayListHead++, dl_hud_img_begin);
 
     for (i = 0; i < sTextLabelsCount; i++) {
-        for (j = 0; j < sTextLabels[i]->length; j++) {
-            glyphIndex = char_to_glyph_index(sTextLabels[i]->buffer[j]);
+        for (j = 0; j < sTextLabels[i].length; j++) {
+            glyphIndex = char_to_glyph_index(sTextLabels[i].buffer[j]);
 
             if (glyphIndex != GLYPH_SPACE) {
 #ifdef VERSION_EU
@@ -453,17 +456,17 @@ void render_text_labels(void) {
                 // This produces a colorful Ü.
                 if (glyphIndex == GLYPH_KEY) {
                     add_glyph_texture(GLYPH_U);
-                    render_textrect(sTextLabels[i]->x, sTextLabels[i]->y, j);
+                    render_textrect(sTextLabels[i].x, sTextLabels[i].y, j);
 
                     add_glyph_texture(GLYPH_UMLAUT);
-                    render_textrect(sTextLabels[i]->x, sTextLabels[i]->y + 3, j);
+                    render_textrect(sTextLabels[i].x, sTextLabels[i].y + 3, j);
                 } else {
                     add_glyph_texture(glyphIndex);
-                    render_textrect(sTextLabels[i]->x, sTextLabels[i]->y, j);
+                    render_textrect(sTextLabels[i].x, sTextLabels[i].y, j);
                 }
 #else
                 add_glyph_texture(glyphIndex);
-                render_textrect(sTextLabels[i]->x, sTextLabels[i]->y, j);
+                render_textrect(sTextLabels[i].x, sTextLabels[i].y, j);
 #endif
             }
         }

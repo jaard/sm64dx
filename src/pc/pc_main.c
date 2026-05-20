@@ -240,11 +240,9 @@ static void produce_fixed_30_fps_title_frame_and_delay(void) {
     send_display_list(gGfxSPTask);
     gfx_end_frame_render();
 
-    if (configFramerateMode != RRM_UNLIMITED) {
-        curTime = clock_elapsed_f64();
-        if (curTime < targetTime) {
-            precise_delay_f64(targetTime - curTime);
-        }
+    curTime = clock_elapsed_f64();
+    if (curTime < targetTime) {
+        precise_delay_f64(targetTime - curTime);
     }
 
     gfx_display_frame();

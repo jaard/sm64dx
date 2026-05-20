@@ -562,6 +562,10 @@ static void gfx_d3d11_set_use_alpha(bool use_alpha) {
     // Already part of the pipeline state from shader info
 }
 
+static void gfx_d3d11_set_multisample(bool enable) {
+    (void)enable;
+}
+
 static void gfx_d3d11_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
 
     if (d3d.last_depth_test != d3d.depth_test || d3d.last_depth_mask != d3d.depth_mask) {
@@ -732,6 +736,7 @@ struct GfxRenderingAPI gfx_direct3d11_api = {
     gfx_d3d11_set_viewport,
     gfx_d3d11_set_scissor,
     gfx_d3d11_set_use_alpha,
+    gfx_d3d11_set_multisample,
     gfx_d3d11_draw_triangles,
     gfx_d3d11_init,
     gfx_d3d11_on_resize,

@@ -665,6 +665,14 @@ static void gfx_opengl_set_use_alpha(bool use_alpha) {
     }
 }
 
+static void gfx_opengl_set_multisample(bool enable) {
+    if (enable) {
+        glEnable(GL_MULTISAMPLE);
+    } else {
+        glDisable(GL_MULTISAMPLE);
+    }
+}
+
 static void gfx_opengl_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
     //printf("flushing %d tris\n", buf_vbo_num_tris);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * buf_vbo_len, buf_vbo, GL_STREAM_DRAW);
@@ -757,6 +765,7 @@ struct GfxRenderingAPI gfx_opengl_api = {
     gfx_opengl_set_viewport,
     gfx_opengl_set_scissor,
     gfx_opengl_set_use_alpha,
+    gfx_opengl_set_multisample,
     gfx_opengl_draw_triangles,
     gfx_opengl_init,
     gfx_opengl_on_resize,

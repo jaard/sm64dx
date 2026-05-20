@@ -403,6 +403,14 @@ static void gfx_opengl_set_use_alpha(bool use_alpha) {
         glDisable(GL_BLEND);
 }
 
+static void gfx_opengl_set_multisample(bool enable) {
+    if (enable) {
+        glEnable(GL_MULTISAMPLE);
+    } else {
+        glDisable(GL_MULTISAMPLE);
+    }
+}
+
 // draws the same triangles as plain fog color + fog intensity as alpha
 // on top of the normal tris and blends them to achieve sort of the same effect
 // as fog would
@@ -581,6 +589,7 @@ struct GfxRenderingAPI gfx_opengl_api = {
     gfx_opengl_set_viewport,
     gfx_opengl_set_scissor,
     gfx_opengl_set_use_alpha,
+    gfx_opengl_set_multisample,
     gfx_opengl_draw_triangles,
     gfx_opengl_init,
     gfx_opengl_on_resize,

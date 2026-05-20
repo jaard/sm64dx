@@ -25,9 +25,12 @@
 
 #include "game/object_helpers.h"
 #include "game/rendering_graph_node.h"
+#include "game/segment2.h"
+#include "game/segment7.h"
 
 #include "pc/configfile.h"
 #include "pc/debug_context.h"
+#include "pc/djui/djui_gfx.h"
 #include "pc/pc_main.h"
 #include "pc/platform.h"
 
@@ -111,6 +114,7 @@ static bool dropped_frame = false;
 static float buf_vbo[MAX_BUFFERED * (26 * 3)] = { 0.0f }; // 3 vertices in a triangle and 26 floats per vtx
 static size_t buf_vbo_len = 0;
 static size_t buf_vbo_num_tris = 0;
+static uint32_t sUiMultisampleDisableDepth = 0;
 
 static struct GfxWindowManagerAPI *gfx_wapi = NULL;
 static struct GfxRenderingAPI *gfx_rapi = NULL;
@@ -168,6 +172,40 @@ static void gfx_flush(void) {
         gfx_rapi->draw_triangles(buf_vbo, buf_vbo_len, buf_vbo_num_tris);
         buf_vbo_len = 0;
         buf_vbo_num_tris = 0;
+    }
+}
+
+static bool gfx_dl_disables_multisample(const Gfx *dl) {
+    return dl == dl_rgba16_text_begin
+        || dl == dl_ia_text_begin
+        || dl == dl_hud_img_begin
+        || dl == dl_menu_ia8_text_begin
+        || dl == dl_djui_display_list_begin;
+}
+
+static bool gfx_dl_enables_multisample(const Gfx *dl) {
+    return dl == dl_rgba16_text_end
+        || dl == dl_ia_text_end
+        || dl == dl_hud_img_end
+        || dl == dl_menu_ia8_text_end
+        || dl == dl_djui_display_list_end;
+}
+
+static void gfx_push_ui_multisample_disable(void) {
+    if (sUiMultisampleDisableDepth++ == 0 && gfx_rapi->set_multisample != NULL) {
+        gfx_flush();
+        gfx_rapi->set_multisample(false);
+    }
+}
+
+static void gfx_pop_ui_multisample_disable(void) {
+    if (sUiMultisampleDisableDepth == 0) {
+        return;
+    }
+
+    if (--sUiMultisampleDisableDepth == 0 && gfx_rapi->set_multisample != NULL) {
+        gfx_flush();
+        gfx_rapi->set_multisample(true);
     }
 }
 
@@ -1781,12 +1819,21 @@ static void OPTIMIZE_O3 gfx_run_dl(Gfx* cmd) {
 #endif
                 break;
             case G_DL:
-                if (C0(16, 1) == 0) {
-                    // Push return address
-                    gfx_run_dl((Gfx *)seg_addr(cmd->words.w1));
-                } else {
-                    cmd = (Gfx *)seg_addr(cmd->words.w1);
-                    --cmd; // increase after break
+                {
+                    Gfx *dl = (Gfx *)seg_addr(cmd->words.w1);
+                    if (gfx_dl_disables_multisample(dl)) {
+                        gfx_push_ui_multisample_disable();
+                    } else if (gfx_dl_enables_multisample(dl)) {
+                        gfx_pop_ui_multisample_disable();
+                    }
+
+                    if (C0(16, 1) == 0) {
+                        // Push return address
+                        gfx_run_dl(dl);
+                    } else {
+                        cmd = dl;
+                        --cmd; // increase after break
+                    }
                 }
                 break;
             case (uint8_t)G_ENDDL:
@@ -1994,6 +2041,10 @@ struct GfxRenderingAPI *gfx_get_current_rendering_api(void) {
 }
 
 void gfx_start_frame(void) {
+    sUiMultisampleDisableDepth = 0;
+    if (gfx_rapi->set_multisample != NULL) {
+        gfx_rapi->set_multisample(true);
+    }
     if (gGfxPcResetTex1 > 0) {
         gGfxPcResetTex1--;
         rdp.loaded_texture[1].addr = NULL;

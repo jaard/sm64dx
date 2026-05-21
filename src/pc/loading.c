@@ -12,7 +12,9 @@
 #include "pc/cliopts.h"
 #include "rom_checker.h"
 
+#ifndef COOPDX_SOLO
 extern ALIGNED8 u8 texture_coopdx_logo[];
+#endif
 
 struct LoadingSegment gCurrLoadingSegment = { "", 0 };
 
@@ -60,15 +62,13 @@ static bool loading_screen_on_render(struct DjuiBase* base) {
     djui_base_set_size(base, windowWidth, windowHeight);
 
     // splash logo
-#ifdef COOPDX_SOLO
-    if (1) {
-#else
+#ifndef COOPDX_SOLO
     if (configExCoopTheme) {
-#endif
         djui_base_set_location(&sLoading->splashText->base, 0, loadingDescY1 - sLoading->splashText->base.height.value);
     } else {
         djui_base_set_location(&sLoading->splashImage->base, 0, loadingDescY1 - sLoading->splashImage->base.height.value);
     }
+#endif
 
     {
         // loading text description
@@ -111,13 +111,9 @@ static void init_loading_screen(void) {
     djui_base_init(NULL, base, loading_screen_on_render, loading_screen_destroy);
 
     // splash text (easter egg)
-#ifdef COOPDX_SOLO
-    if (1) {
-        struct DjuiText* splashDjuiText = djui_text_create(base, "\\#ff0800\\SUPER\\#ffffff\\ MARIO \\#00b3ff\\64");
-#else
+#ifndef COOPDX_SOLO
     if (configExCoopTheme) {
         struct DjuiText* splashDjuiText = djui_text_create(base, "\\#ff0800\\SM\\#1be700\\64\\#00b3ff\\EX\n\\#ffef00\\COOP");
-#endif
         djui_base_set_location_type(&splashDjuiText->base, DJUI_SVT_RELATIVE, DJUI_SVT_ABSOLUTE);
         djui_base_set_location(&splashDjuiText->base, 0, 0);
         djui_text_set_font(splashDjuiText, gDjuiFonts[1]);
@@ -138,6 +134,7 @@ static void init_loading_screen(void) {
 
         load->splashImage = splashImage;
     }
+#endif
 
     {
         // current loading stage text

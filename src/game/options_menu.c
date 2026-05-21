@@ -674,8 +674,10 @@ static void solo_draw_menu(void) {
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     if (sCurrentMenu->optCount > 0) {
         s16 arrowY = rowStart - 8 - rowStep * (sCurrentMenu->select - sCurrentMenu->scroll);
-        solo_text(72, arrowY, "<", false);
-        solo_text(232, arrowY, ">", false);
+        s16 arrowLeftX = sCurrentMenu == &sMenuControls ? 76 : 88;
+        s16 arrowRightX = sCurrentMenu == &sMenuControls ? 244 : 232;
+        solo_text(arrowLeftX, arrowY, "<", false);
+        solo_text(arrowRightX, arrowY, ">", false);
     }
     if (sCurrentMenu == &sMenuDisplay && sMsaaOriginal != SOLO_MSAA_ORIGINAL_UNSET && sMsaaOriginal != configWindow.msaa) {
         solo_text_color(160, 12, "Restart the game to apply changes.", 255, 160, 0);

@@ -15,25 +15,22 @@
 #include "pc/configfile.h"
 #include "pc/controller/controller_api.h"
 #include "pc/controller/controller_bind_mapping.h"
-#include "pc/djui/djui_panel_camera.h"
 #include "pc/djui/djui_panel_controls.h"
-#include "pc/djui/djui_panel_display.h"
-#include "pc/djui/djui_panel_dynos.h"
-#include "pc/djui/djui_panel_language.h"
-#include "pc/djui/djui_panel_menu_options.h"
-#include "pc/djui/djui_panel_misc.h"
 #include "pc/djui/djui_panel_pause.h"
 #include "pc/djui/djui_panel_player.h"
 #include "pc/djui/djui_panel_sound.h"
+#include "pc/fs/fs.h"
 #include "pc/gfx/gfx_window_manager_api.h"
 #include "pc/lua/utils/smlua_audio_utils.h"
 #include "pc/network/network_player.h"
 #include "pc/pc_main.h"
+#include "pc/platform.h"
 #include "sm64.h"
 #include "types.h"
 
 #define SOLO_OPT_VISIBLE_COUNT 4
 #define SOLO_OPT_BUF_SIZE 64
+#define SOLO_MSAA_ORIGINAL_UNSET ((u32)-1)
 
 enum SoloOptionType {
     SOLO_OPT_SUBMENU,
@@ -63,6 +60,7 @@ typedef void (*SoloPanelCreateFn)(struct DjuiBase *caller);
 typedef void (*SoloApplyFn)(void);
 typedef void (*SoloChangeFn)(const struct SoloOption *opt, s32 dir);
 typedef const char *(*SoloValueFn)(const struct SoloOption *opt, char *buf, size_t size);
+typedef bool (*SoloEnabledFn)(const struct SoloOption *opt);
 
 struct SoloOption {
     const char *label;
@@ -79,6 +77,7 @@ struct SoloOption {
     SoloApplyFn apply;
     SoloChangeFn change;
     SoloValueFn valueText;
+    SoloEnabledFn enabled;
 };
 
 struct SoloMenu {
@@ -95,14 +94,18 @@ static s32 sInputTimer = 0;
 static u8 sHoldCount = 0;
 static const struct SoloOption *sBindingOption = NULL;
 static u8 sBindIndex = 0;
+static u32 sMsaaOriginal = SOLO_MSAA_ORIGINAL_UNSET;
+static u32 sPalettePresetIndex = 0;
+static bool sPalettesLoaded = false;
 
 static struct SoloMenu sMenuMain;
 static struct SoloMenu sMenuPlayer;
 static struct SoloMenu sMenuCamera;
+static struct SoloMenu sMenuFreeCamera;
+static struct SoloMenu sMenuRomhackCamera;
 static struct SoloMenu sMenuControls;
 static struct SoloMenu sMenuDisplay;
 static struct SoloMenu sMenuSound;
-static struct SoloMenu sMenuMisc;
 
 static const struct SoloMenu *sCurrentMenu = &sMenuMain;
 
@@ -197,6 +200,7 @@ static void solo_menu_open(void) {
     sCurrentMenu = &sMenuMain;
     sInputTimer = 0;
     sHoldCount = 0;
+    if (sMsaaOriginal == SOLO_MSAA_ORIGINAL_UNSET) { sMsaaOriginal = configWindow.msaa; }
 }
 
 bool optmenu_is_open(void) {
@@ -216,6 +220,10 @@ static void solo_sound_apply(void) {
     audio_custom_update_volume();
 }
 
+static bool solo_frame_limit_enabled(UNUSED const struct SoloOption *opt) {
+    return configFramerateMode == RRM_MANUAL;
+}
+
 static void solo_player_apply(void) {
     if (configPlayerModel >= CT_MAX) { configPlayerModel = CT_MARIO; }
     if (gNetworkPlayers[0].overrideModelIndex == gNetworkPlayers[0].modelIndex) {
@@ -225,12 +233,39 @@ static void solo_player_apply(void) {
     network_player_update_model(0);
 }
 
+static void solo_player_load_palettes(void) {
+    if (sPalettesLoaded) { return; }
+
+    player_palettes_reset();
+    player_palettes_read(sys_resource_path(), true);
+    player_palettes_read(fs_get_write_path(PALETTES_DIRECTORY), false);
+    sPalettesLoaded = true;
+}
+
+static u32 solo_player_palette_index(struct PlayerPalette palette) {
+    for (u32 i = 0; i < gPresetPaletteCount; i++) {
+        if (memcmp(&palette, &gPresetPalettes[i].palette, sizeof(struct PlayerPalette)) == 0) {
+            return i + 1;
+        }
+    }
+    return 0;
+}
+
+static void solo_player_apply_palette(struct PlayerPalette palette) {
+    if (memcmp(&gNetworkPlayers[0].overridePalette, &gNetworkPlayers[0].palette, sizeof(struct PlayerPalette)) == 0) {
+        gNetworkPlayers[0].overridePalette = palette;
+    }
+
+    configPlayerPalette = palette;
+    gNetworkPlayers[0].palette = configPlayerPalette;
+}
+
 static void solo_player_apply_default_palette(void) {
     if (configPlayerModel >= CT_MAX) { configPlayerModel = CT_MARIO; }
 
-    configPlayerPalette = sDefaultCharacterPalettes[configPlayerModel];
-    gNetworkPlayers[0].palette = configPlayerPalette;
-    gNetworkPlayers[0].overridePalette = configPlayerPalette;
+    solo_player_load_palettes();
+    solo_player_apply_palette(sDefaultCharacterPalettes[configPlayerModel]);
+    sPalettePresetIndex = solo_player_palette_index(configPlayerPalette);
 }
 
 static void solo_open_djui(SoloPanelCreateFn createPanel) {
@@ -240,20 +275,16 @@ static void solo_open_djui(SoloPanelCreateFn createPanel) {
 }
 
 static void solo_open_player_panel(void) { solo_open_djui(djui_panel_player_create); }
-static void solo_open_camera_panel(void) { solo_open_djui(djui_panel_camera_create); }
 static void solo_open_controls_panel(void) { solo_open_djui(djui_panel_controls_create); }
-static void solo_open_display_panel(void) { solo_open_djui(djui_panel_display_create); }
 static void solo_open_sound_panel(void) { solo_open_djui(djui_panel_sound_create); }
-static void solo_open_misc_panel(void) { solo_open_djui(djui_panel_misc_create); }
-static void solo_open_language_panel(void) { solo_open_djui(djui_panel_language_create); }
-static void solo_open_menu_options_panel(void) { solo_open_djui(djui_panel_main_menu_create); }
-static void solo_open_dynos_panel(void) { solo_open_djui(djui_panel_dynos_create); }
 
 static void solo_restore_default_binds(void) {
     for (u8 i = 0; i < ARRAY_COUNT(sDefaultN64Binds); i++) {
         memcpy(sDefaultN64Binds[i].target, sDefaultN64Binds[i].values, sizeof(sDefaultN64Binds[i].values));
     }
 
+    configStickDeadzone = 16;
+    configRumbleStrength = 50;
     sBindingOption = NULL;
     sBindIndex = 0;
     controller_reconfigure();
@@ -296,6 +327,16 @@ static const char *solo_bind_value(const struct SoloOption *opt, char *buf, size
 static const char *solo_character_value(UNUSED const struct SoloOption *opt, UNUSED char *buf, UNUSED size_t size) {
     if (configPlayerModel >= CT_MAX) { configPlayerModel = CT_MARIO; }
     return gCharacters[configPlayerModel].name;
+}
+
+static const char *solo_palette_value(UNUSED const struct SoloOption *opt, UNUSED char *buf, UNUSED size_t size) {
+    solo_player_load_palettes();
+    sPalettePresetIndex = solo_player_palette_index(configPlayerPalette);
+    if (sPalettePresetIndex == 0 || sPalettePresetIndex > gPresetPaletteCount) {
+        return "CUSTOM";
+    }
+
+    return gPresetPalettes[sPalettePresetIndex - 1].name;
 }
 
 static const char *solo_msaa_value(UNUSED const struct SoloOption *opt, char *buf, size_t size) {
@@ -354,6 +395,21 @@ static void solo_change_character(const struct SoloOption *opt, s32 dir) {
     if (opt->apply) { opt->apply(); }
 }
 
+static void solo_change_palette(UNUSED const struct SoloOption *opt, s32 dir) {
+    solo_player_load_palettes();
+    if (gPresetPaletteCount == 0) { return; }
+
+    s32 index = solo_player_palette_index(configPlayerPalette) + dir;
+    if (index < 1) {
+        index = gPresetPaletteCount;
+    } else if (index > gPresetPaletteCount) {
+        index = 1;
+    }
+
+    sPalettePresetIndex = index;
+    solo_player_apply_palette(gPresetPalettes[sPalettePresetIndex - 1].palette);
+}
+
 static void solo_change_msaa(const struct SoloOption *opt, s32 dir) {
     const u32 values[] = { 0, 2, 4, 8, 16 };
     u8 count = 1;
@@ -394,6 +450,8 @@ static void solo_change_bind_slot(UNUSED const struct SoloOption *opt, s32 dir) 
 }
 
 static void solo_change_option(const struct SoloOption *opt, s32 dir) {
+    if (opt->enabled && !opt->enabled(opt)) { return; }
+
     if (opt->change) {
         opt->change(opt, dir);
         return;
@@ -431,6 +489,8 @@ static void solo_action_back(void) {
 }
 
 static void solo_enter_option(const struct SoloOption *opt) {
+    if (opt->enabled && !opt->enabled(opt)) { return; }
+
     switch (opt->type) {
         case SOLO_OPT_SUBMENU:
             sCurrentMenu = opt->submenu;
@@ -461,15 +521,23 @@ static void solo_draw_box(s16 x1, s16 y1, s16 x2, s16 y2, u8 r, u8 g, u8 b) {
     gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
 }
 
-static void solo_text(s16 x, s16 y, const char *ascii, bool selected) {
+static void solo_text_color(s16 x, s16 y, const char *ascii, u8 r, u8 g, u8 b) {
     u8 text[SOLO_OPT_BUF_SIZE] = { DIALOG_CHAR_TERMINATOR };
     convert_string_ascii_to_sm64(text, ascii, false);
 
     s16 textX = get_str_x_pos_from_center(x, text, 10.0f);
     gDPSetEnvColor(gDisplayListHead++, 0, 0, 0, 255);
     print_generic_string(textX + 1, y - 1, text);
-    gDPSetEnvColor(gDisplayListHead++, selected ? 255 : 255, selected ? 32 : 255, selected ? 32 : 255, 255);
+    gDPSetEnvColor(gDisplayListHead++, r, g, b, 255);
     print_generic_string(textX, y, text);
+}
+
+static void solo_text(s16 x, s16 y, const char *ascii, bool selected) {
+    solo_text_color(x, y, ascii, 255, selected ? 32 : 255, selected ? 32 : 255);
+}
+
+static void solo_text_disabled(s16 x, s16 y, const char *ascii) {
+    solo_text_color(x, y, ascii, 128, 128, 128);
 }
 
 static void solo_format_bind_value(u32 bind, char *buf, size_t size) {
@@ -547,17 +615,24 @@ static void solo_draw_menu(void) {
 
         const struct SoloOption *opt = &sCurrentMenu->opts[i];
         bool selected = sCurrentMenu->select == i;
+        bool enabled = opt->enabled == NULL || opt->enabled(opt);
         s16 labelY = (opt->type == SOLO_OPT_SUBMENU || opt->type == SOLO_OPT_ACTION || opt->type == SOLO_OPT_BACK) ? y - 6 : y;
         char valueBuf[SOLO_OPT_BUF_SIZE];
         const char *value = solo_option_value(opt, valueBuf, sizeof(valueBuf));
 
         if (opt->type == SOLO_OPT_BIND) {
             solo_draw_bind_option(opt, y, selected);
+        } else if (!enabled) {
+            solo_text_disabled(160, labelY, opt->label);
         } else {
             solo_text(160, labelY, opt->label, selected);
         }
         if (value != NULL && opt->type != SOLO_OPT_BIND) {
-            solo_text(160, y - 13, value, selected);
+            if (enabled) {
+                solo_text(160, y - 13, value, selected);
+            } else {
+                solo_text_disabled(160, y - 13, value);
+            }
         }
     }
 
@@ -566,6 +641,9 @@ static void solo_draw_menu(void) {
         s16 arrowY = 132 - (32 * (sCurrentMenu->select - sCurrentMenu->scroll));
         solo_text(72, arrowY, "<", false);
         solo_text(232, arrowY, ">", false);
+    }
+    if (sCurrentMenu == &sMenuDisplay && sMsaaOriginal != SOLO_MSAA_ORIGINAL_UNSET && sMsaaOriginal != configWindow.msaa) {
+        solo_text_color(160, 12, "Restart the game to apply changes.", 255, 160, 0);
     }
 
     gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
@@ -664,12 +742,11 @@ static const struct SoloOption sMainOptions[] = {
     { "EXIT GAME",   SOLO_OPT_ACTION,  .action = solo_exit_game },
     { "PLAYER",      SOLO_OPT_SUBMENU, .submenu = &sMenuPlayer },
     { "CAMERA",      SOLO_OPT_SUBMENU, .submenu = &sMenuCamera },
-    { "MISC",        SOLO_OPT_SUBMENU, .submenu = &sMenuMisc },
-    { "DYNOS PACKS", SOLO_OPT_ACTION,  .action = solo_open_dynos_panel },
 };
 
 static const struct SoloOption sPlayerOptions[] = {
     { "Character",        SOLO_OPT_CHOICE, .uval = &configPlayerModel, .apply = solo_player_apply, .change = solo_change_character, .valueText = solo_character_value },
+    { "Color Palette",    SOLO_OPT_CHOICE, .change = solo_change_palette, .valueText = solo_palette_value },
     { "Player Options",   SOLO_OPT_ACTION, .action = solo_open_player_panel },
 };
 
@@ -677,8 +754,31 @@ static const struct SoloOption sCameraOptions[] = {
     { "Invert X",         SOLO_OPT_BOOL,   .bval = &configCameraInvertX, .apply = solo_camera_apply },
     { "Invert Y",         SOLO_OPT_BOOL,   .bval = &configCameraInvertY, .apply = solo_camera_apply },
     { "Free Camera",      SOLO_OPT_BOOL,   .bval = &configEnableFreeCamera, .apply = solo_camera_apply },
+    { "Free Camera Options",    SOLO_OPT_SUBMENU, .submenu = &sMenuFreeCamera },
     { "Romhack Camera",   SOLO_OPT_CHOICE, .uval = &configEnableRomhackCamera, .choices = sRomhackCameraChoices, .choiceCount = ARRAY_COUNT(sRomhackCameraChoices), .apply = solo_camera_apply },
-    { "Camera Options",   SOLO_OPT_ACTION, .action = solo_open_camera_panel },
+    { "Romhack Camera Options", SOLO_OPT_SUBMENU, .submenu = &sMenuRomhackCamera },
+};
+
+static const struct SoloOption sFreeCameraOptions[] = {
+    { "Analog Camera",    SOLO_OPT_BOOL,  .bval = &configFreeCameraAnalog, .apply = solo_camera_apply },
+    { "L Centering",      SOLO_OPT_BOOL,  .bval = &configFreeCameraLCentering, .apply = solo_camera_apply },
+    { "Use D-Pad",        SOLO_OPT_BOOL,  .bval = &configFreeCameraDPadBehavior, .apply = solo_camera_apply },
+    { "Collision",        SOLO_OPT_BOOL,  .bval = &configFreeCameraHasCollision, .apply = solo_camera_apply },
+    { "Mouse Look",       SOLO_OPT_BOOL,  .bval = &configFreeCameraMouse, .apply = solo_camera_apply },
+    { "X Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraXSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply },
+    { "Y Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraYSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply },
+    { "Aggression",       SOLO_OPT_RANGE, .uval = &configFreeCameraAggr, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply },
+    { "Pan Level",        SOLO_OPT_RANGE, .uval = &configFreeCameraPan, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply },
+    { "Deceleration",     SOLO_OPT_RANGE, .uval = &configFreeCameraDegrade, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply },
+};
+
+static const struct SoloOption sRomhackCameraOptions[] = {
+    { "Bowser Fights",    SOLO_OPT_BOOL,   .bval = &configRomhackCameraBowserFights, .apply = solo_camera_apply },
+    { "Collision",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraHasCollision, .apply = solo_camera_apply },
+    { "L Centering",      SOLO_OPT_BOOL,   .bval = &configRomhackCameraHasCentering, .apply = solo_camera_apply },
+    { "Use D-Pad",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraDPadBehavior, .apply = solo_camera_apply },
+    { "Slow Fall",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraSlowFall, .apply = solo_camera_apply },
+    { "Toxic Gas",        SOLO_OPT_BOOL,   .bval = &configCameraToxicGas, .apply = solo_camera_apply },
 };
 
 static const struct SoloOption sControlsOptions[] = {
@@ -688,17 +788,17 @@ static const struct SoloOption sControlsOptions[] = {
     { "L Trigger",       SOLO_OPT_BIND,   .uval = configKeyL },
     { "R Trigger",       SOLO_OPT_BIND,   .uval = configKeyR },
     { "Z Trigger",       SOLO_OPT_BIND,   .uval = configKeyZ },
-    { "C Up",            SOLO_OPT_BIND,   .uval = configKeyCUp },
-    { "C Down",          SOLO_OPT_BIND,   .uval = configKeyCDown },
-    { "C Left",          SOLO_OPT_BIND,   .uval = configKeyCLeft },
-    { "C Right",         SOLO_OPT_BIND,   .uval = configKeyCRight },
+    { "C-Up",            SOLO_OPT_BIND,   .uval = configKeyCUp },
+    { "C-Down",          SOLO_OPT_BIND,   .uval = configKeyCDown },
+    { "C-Left",          SOLO_OPT_BIND,   .uval = configKeyCLeft },
+    { "C-Right",         SOLO_OPT_BIND,   .uval = configKeyCRight },
     { "Stick Up",        SOLO_OPT_BIND,   .uval = configKeyStickUp },
     { "Stick Down",      SOLO_OPT_BIND,   .uval = configKeyStickDown },
     { "Stick Left",      SOLO_OPT_BIND,   .uval = configKeyStickLeft },
     { "Stick Right",     SOLO_OPT_BIND,   .uval = configKeyStickRight },
+    { "Stick Deadzone",  SOLO_OPT_RANGE,  .uval = &configStickDeadzone, .min = 0, .max = 100, .step = 5 },
+    { "Rumble",          SOLO_OPT_RANGE,  .uval = &configRumbleStrength, .min = 0, .max = 100, .step = 5 },
     { "Restore Defaults", SOLO_OPT_ACTION, .action = solo_restore_default_binds },
-    { "Deadzone",         SOLO_OPT_RANGE,  .uval = &configStickDeadzone, .min = 0, .max = 100, .step = 5 },
-    { "Rumble",           SOLO_OPT_RANGE,  .uval = &configRumbleStrength, .min = 0, .max = 100, .step = 5 },
     { "Control Options",  SOLO_OPT_ACTION, .action = solo_open_controls_panel },
 };
 
@@ -708,12 +808,11 @@ static const struct SoloOption sDisplayOptions[] = {
     { "Show FPS",         SOLO_OPT_BOOL,   .bval = &configShowFPS },
     { "Vsync",            SOLO_OPT_BOOL,   .bval = &configWindow.vsync, .apply = solo_display_apply },
     { "Framerate",        SOLO_OPT_CHOICE, .uval = (u32 *)&configFramerateMode, .choices = sFramerateChoices, .choiceCount = ARRAY_COUNT(sFramerateChoices) },
-    { "Frame Limit",      SOLO_OPT_CHOICE, .uval = &configFrameLimit, .choices = sFrameLimitChoices, .choiceCount = ARRAY_COUNT(sFrameLimitChoices) },
+    { "Frame Limit",      SOLO_OPT_CHOICE, .uval = &configFrameLimit, .choices = sFrameLimitChoices, .choiceCount = ARRAY_COUNT(sFrameLimitChoices), .enabled = solo_frame_limit_enabled },
     { "Interpolation",    SOLO_OPT_CHOICE, .uval = &configInterpolationMode, .choices = sInterpolationChoices, .choiceCount = ARRAY_COUNT(sInterpolationChoices) },
     { "Filtering",        SOLO_OPT_CHOICE, .uval = &configFiltering, .choices = sFilteringChoices, .choiceCount = ARRAY_COUNT(sFilteringChoices) },
     { "Antialiasing",     SOLO_OPT_CHOICE, .change = solo_change_msaa, .valueText = solo_msaa_value, .apply = solo_display_apply },
     { "Draw Distance",    SOLO_OPT_CHOICE, .uval = &configDrawDistance, .choices = sDrawDistanceChoices, .choiceCount = ARRAY_COUNT(sDrawDistanceChoices) },
-    { "Display Options",  SOLO_OPT_ACTION, .action = solo_open_display_panel },
 };
 
 static const struct SoloOption sSoundOptions[] = {
@@ -726,20 +825,14 @@ static const struct SoloOption sSoundOptions[] = {
     { "Sound Options",    SOLO_OPT_ACTION, .action = solo_open_sound_panel },
 };
 
-static const struct SoloOption sMiscOptions[] = {
-    { "Disable Popups",   SOLO_OPT_BOOL,   .bval = &configDisablePopups },
-    { "Language",         SOLO_OPT_ACTION, .action = solo_open_language_panel },
-    { "Menu Options",     SOLO_OPT_ACTION, .action = solo_open_menu_options_panel },
-    { "Misc Options",     SOLO_OPT_ACTION, .action = solo_open_misc_panel },
-};
-
 static struct SoloMenu sMenuMain = { "OPTIONS", sMainOptions, ARRAY_COUNT(sMainOptions), 0, 0, NULL };
 static struct SoloMenu sMenuPlayer = { "PLAYER", sPlayerOptions, ARRAY_COUNT(sPlayerOptions), 0, 0, &sMenuMain };
 static struct SoloMenu sMenuCamera = { "CAMERA", sCameraOptions, ARRAY_COUNT(sCameraOptions), 0, 0, &sMenuMain };
+static struct SoloMenu sMenuFreeCamera = { "FREE CAMERA", sFreeCameraOptions, ARRAY_COUNT(sFreeCameraOptions), 0, 0, &sMenuCamera };
+static struct SoloMenu sMenuRomhackCamera = { "ROMHACK CAMERA", sRomhackCameraOptions, ARRAY_COUNT(sRomhackCameraOptions), 0, 0, &sMenuCamera };
 static struct SoloMenu sMenuControls = { "CONTROLS", sControlsOptions, ARRAY_COUNT(sControlsOptions), 0, 0, &sMenuMain };
 static struct SoloMenu sMenuDisplay = { "DISPLAY", sDisplayOptions, ARRAY_COUNT(sDisplayOptions), 0, 0, &sMenuMain };
 static struct SoloMenu sMenuSound = { "SOUND", sSoundOptions, ARRAY_COUNT(sSoundOptions), 0, 0, &sMenuMain };
-static struct SoloMenu sMenuMisc = { "MISC", sMiscOptions, ARRAY_COUNT(sMiscOptions), 0, 0, &sMenuMain };
 
 void optmenu_update_and_render(void) {
     if (!sSoloOptionsOpen) {

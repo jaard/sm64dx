@@ -176,6 +176,13 @@ static inline void update_button(const int i, const bool new) {
     }
 }
 
+static void controller_sdl_clear_buttons(void) {
+    for (u32 i = 0; i < MAX_JOYBUTTONS; i++) {
+        update_button(i, false);
+    }
+    last_joybutton = VK_INVALID;
+}
+
 extern s16 gMenuMode;
 static void controller_sdl_read(OSContPad *pad) {
     if (!init_ok) { return; }
@@ -197,6 +204,13 @@ static void controller_sdl_read(OSContPad *pad) {
     }
     // remember buttons that changed from 0 to 1
     last_mouse = (mouse_prev ^ mouse) & mouse;
+
+#ifdef COOPDX_SOLO
+    if (!WAPI.has_focus()) {
+        controller_sdl_clear_buttons();
+        return;
+    }
+#endif
 
     if (configBackgroundGamepad != sBackgroundGamepad) {
         sBackgroundGamepad = configBackgroundGamepad;

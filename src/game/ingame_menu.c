@@ -40,7 +40,7 @@
 #include "menu/ingame_text.h"
 #include "pc/dialog_table.h"
 #ifdef COOPDX_SOLO
-#include "solo_options_menu.h"
+#include "options_menu.h"
 #endif
 
 u16 gDialogColorFadeTimer;
@@ -2982,7 +2982,7 @@ s16 render_pause_courses_and_castle(void) {
         case DIALOG_STATE_VERTICAL:
             if (!gDjuiPanelPauseCreated && !gPauseMenuHidden
 #ifdef COOPDX_SOLO
-                && !solo_options_menu_is_open()
+                && !optmenu_is_open()
 #endif
             ) {
                 shade_screen();
@@ -3027,7 +3027,7 @@ s16 render_pause_courses_and_castle(void) {
         case DIALOG_STATE_HORIZONTAL:
             if (!gDjuiPanelPauseCreated && !gPauseMenuHidden
 #ifdef COOPDX_SOLO
-                && !solo_options_menu_is_open()
+                && !optmenu_is_open()
 #endif
             ) {
                 shade_screen();
@@ -3066,10 +3066,10 @@ s16 render_pause_courses_and_castle(void) {
     if (gDjuiPanelPauseCreated && !gDjuiInPlayerMenu) { shade_screen(); }
 #ifdef COOPDX_SOLO
     if (!gDjuiPanelPauseCreated && !gPauseMenuHidden) {
-        if (solo_options_menu_is_open()) {
+        if (optmenu_is_open()) {
             shade_screen();
         }
-        solo_options_menu_update_and_render();
+        optmenu_update_and_render();
     }
 #else
     if (gPlayer1Controller->buttonPressed & R_TRIG) {

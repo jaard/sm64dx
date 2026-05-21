@@ -201,6 +201,7 @@ static void solo_menu_open(void) {
     sCurrentMenu = &sMenuMain;
     sInputTimer = 0;
     sHoldCount = 0;
+    sPalettesLoaded = false;
     if (sMsaaOriginal == SOLO_MSAA_ORIGINAL_UNSET) { sMsaaOriginal = configWindow.msaa; }
 }
 
@@ -250,6 +251,12 @@ static u32 solo_player_palette_index(struct PlayerPalette palette) {
         }
     }
     return 0;
+}
+
+static u32 solo_player_current_palette_index(void) {
+    sPalettePresetIndex = solo_player_palette_index(configPlayerPalette);
+    if (sPalettePresetIndex > gPresetPaletteCount) { sPalettePresetIndex = 0; }
+    return sPalettePresetIndex;
 }
 
 static void solo_player_apply_palette(struct PlayerPalette palette) {
@@ -332,7 +339,7 @@ static const char *solo_character_value(UNUSED const struct SoloOption *opt, UNU
 
 static const char *solo_palette_value(UNUSED const struct SoloOption *opt, UNUSED char *buf, UNUSED size_t size) {
     solo_player_load_palettes();
-    sPalettePresetIndex = solo_player_palette_index(configPlayerPalette);
+    solo_player_current_palette_index();
     if (sPalettePresetIndex == 0 || sPalettePresetIndex > gPresetPaletteCount) {
         return "CUSTOM";
     }
@@ -400,7 +407,13 @@ static void solo_change_palette(UNUSED const struct SoloOption *opt, s32 dir) {
     solo_player_load_palettes();
     if (gPresetPaletteCount == 0) { return; }
 
-    s32 index = solo_player_palette_index(configPlayerPalette) + dir;
+    s32 index = solo_player_current_palette_index();
+    if (index == 0) {
+        index = dir < 0 ? gPresetPaletteCount : 1;
+    } else {
+        index += dir;
+    }
+
     if (index < 1) {
         index = gPresetPaletteCount;
     } else if (index > gPresetPaletteCount) {

@@ -396,6 +396,12 @@ struct QueuedFile {
 
 static struct QueuedFile *sQueuedEnableModsHead = NULL;
 
+static void queued_file_write(FILE* file, const char *name, struct QueuedFile *head) {
+    for (struct QueuedFile *queued = head; queued != NULL; queued = queued->next) {
+        fprintf(file, "%s %s\n", name, queued->path);
+    }
+}
+
 void enable_queued_mods(void) {
     while (sQueuedEnableModsHead) {
         struct QueuedFile *next = sQueuedEnableModsHead->next;
@@ -441,6 +447,12 @@ static void enable_mod(char* mod) {
 }
 
 static void enable_mod_write(FILE* file) {
+#ifdef COOPDX_SOLO
+    if (gLocalMods.entryCount == 0) {
+        queued_file_write(file, "enable-mod:", sQueuedEnableModsHead);
+        return;
+    }
+#endif
     for (unsigned int i = 0; i < gLocalMods.entryCount; i++) {
         struct Mod* mod = gLocalMods.entries[i];
         if (mod == NULL) { continue; }
@@ -520,6 +532,12 @@ static void dynos_pack_read(char** tokens, int numTokens) {
 
 static void dynos_pack_write(FILE* file) {
     int packCount = dynos_pack_get_count();
+#ifdef COOPDX_SOLO
+    if (packCount == 0) {
+        queued_file_write(file, "dynos-pack:", sQueuedEnableDynosPacksHead);
+        return;
+    }
+#endif
     for (int i = 0; i < packCount; i++) {
         if (dynos_pack_get_enabled(i)) {
             const char* pack = dynos_pack_get_name(i);

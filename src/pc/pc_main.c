@@ -486,8 +486,10 @@ void* main_game_init(UNUSED void* dummy) {
     if (!djui_language_init(configLanguage)) { snprintf(configLanguage, MAX_CONFIG_STRING, "%s", ""); }
 
     LOADING_SCREEN_MUTEX(loading_screen_set_segment_text("Loading"));
+#ifndef COOPDX_SOLO
     dynos_gfx_init();
     enable_queued_dynos_packs();
+#endif
     sync_objects_init_system();
 
     if (gCLIOpts.network != NT_SERVER && !gCLIOpts.skipUpdateCheck) {
@@ -498,8 +500,10 @@ void* main_game_init(UNUSED void* dummy) {
     rom_assets_load();
     smlua_text_utils_init();
 
+#ifndef COOPDX_SOLO
     mods_init();
     enable_queued_mods();
+#endif
     LOADING_SCREEN_MUTEX(
         gCurrLoadingSegment.percentage = 0;
         loading_screen_set_segment_text("Starting Game");

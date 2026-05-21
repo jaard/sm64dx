@@ -16,6 +16,8 @@
 extern ALIGNED8 u8 texture_coopdx_logo[];
 #endif
 
+#define LOADING_SCREEN_DELAY_SEC 0.30
+
 struct LoadingSegment gCurrLoadingSegment = { "", 0 };
 
 struct LoadingScreen {
@@ -35,6 +37,7 @@ void loading_screen_set_segment_text(const char* text) {
 }
 
 void loading_screen_reset_progress_bar(void) {
+    if (!sLoading || !sLoading->loadingBar) { return; }
     sLoading->loadingBar->smoothValue = 0;
 }
 
@@ -42,8 +45,15 @@ static void loading_screen_produce_frame_callback(void) {
     if (sLoading) { djui_base_render(&sLoading->base); }
 }
 
+static void loading_screen_produce_blank_frame_callback(void) {
+}
+
 static void loading_screen_produce_one_frame(void) {
     produce_one_dummy_frame(loading_screen_produce_frame_callback, 0x00, 0x00, 0x00);
+}
+
+static void loading_screen_produce_one_blank_frame(void) {
+    produce_one_dummy_frame(loading_screen_produce_blank_frame_callback, 0x00, 0x00, 0x00);
 }
 
 static bool loading_screen_on_render(struct DjuiBase* base) {
@@ -183,9 +193,16 @@ void loading_screen_reset(void) {
 void render_loading_screen(void) {
     if (!sLoading) { init_loading_screen(); }
 
-    // loading screen loop
-    while (!gGameInited) {
-        WAPI.main_loop(loading_screen_produce_one_frame);
+    f64 delayStart = clock_elapsed_f64();
+    while (!gGameInited && (clock_elapsed_f64() - delayStart) < LOADING_SCREEN_DELAY_SEC) {
+        WAPI.main_loop(loading_screen_produce_one_blank_frame);
+    }
+
+    if (!gGameInited) {
+        // loading screen loop
+        while (!gGameInited) {
+            WAPI.main_loop(loading_screen_produce_one_frame);
+        }
     }
 
     int err = join_thread(&gLoadingThread);

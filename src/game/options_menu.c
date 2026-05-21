@@ -29,6 +29,7 @@
 #include "types.h"
 
 #define SOLO_OPT_VISIBLE_COUNT 4
+#define SOLO_OPT_MAIN_VISIBLE_COUNT 6
 #define SOLO_OPT_BUF_SIZE 64
 #define SOLO_MSAA_ORIGINAL_UNSET ((u32)-1)
 
@@ -597,11 +598,32 @@ static void solo_draw_prompt(void) {
     gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
 }
 
+static s8 solo_menu_visible_count(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? SOLO_OPT_MAIN_VISIBLE_COUNT : SOLO_OPT_VISIBLE_COUNT;
+}
+
+static s16 solo_menu_row_start(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? 150 : 140;
+}
+
+static s16 solo_menu_row_step(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? 24 : 32;
+}
+
+static s16 solo_menu_row_min(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? 20 : 32;
+}
+
 static void solo_draw_menu(void) {
     solo_draw_title();
 
-    if (sCurrentMenu->optCount > SOLO_OPT_VISIBLE_COUNT) {
-        s16 scrollpos = 54 * ((f32)sCurrentMenu->scroll / (sCurrentMenu->optCount - SOLO_OPT_VISIBLE_COUNT));
+    s8 visibleCount = solo_menu_visible_count(sCurrentMenu);
+    s16 rowStart = solo_menu_row_start(sCurrentMenu);
+    s16 rowStep = solo_menu_row_step(sCurrentMenu);
+    s16 rowMin = solo_menu_row_min(sCurrentMenu);
+
+    if (sCurrentMenu->optCount > visibleCount) {
+        s16 scrollpos = 54 * ((f32)sCurrentMenu->scroll / (sCurrentMenu->optCount - visibleCount));
         solo_draw_box(272, 90, 280, 208, 0x80, 0x80, 0x80);
         solo_draw_box(272, 90 + scrollpos, 280, 154 + scrollpos, 0xFF, 0xFF, 0xFF);
     }
@@ -610,8 +632,8 @@ static void solo_draw_menu(void) {
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 80, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     for (s8 i = 0; i < sCurrentMenu->optCount; i++) {
-        s16 y = 140 - 32 * i + sCurrentMenu->scroll * 32;
-        if (y > 140 || y <= 32) { continue; }
+        s16 y = rowStart - rowStep * i + sCurrentMenu->scroll * rowStep;
+        if (y > rowStart || y <= rowMin) { continue; }
 
         const struct SoloOption *opt = &sCurrentMenu->opts[i];
         bool selected = sCurrentMenu->select == i;
@@ -638,7 +660,7 @@ static void solo_draw_menu(void) {
 
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     if (sCurrentMenu->optCount > 0) {
-        s16 arrowY = 132 - (32 * (sCurrentMenu->select - sCurrentMenu->scroll));
+        s16 arrowY = rowStart - 8 - rowStep * (sCurrentMenu->select - sCurrentMenu->scroll);
         solo_text(72, arrowY, "<", false);
         solo_text(232, arrowY, ">", false);
     }
@@ -652,6 +674,8 @@ static void solo_draw_menu(void) {
 
 static void solo_move_selection(s32 dir) {
     struct SoloMenu *menu = (struct SoloMenu *)sCurrentMenu;
+    s8 visibleCount = solo_menu_visible_count(menu);
+
     menu->select += dir;
     if (menu->select < 0) {
         menu->select = menu->optCount - 1;
@@ -661,8 +685,8 @@ static void solo_move_selection(s32 dir) {
 
     if (menu->select < menu->scroll) {
         menu->scroll = menu->select;
-    } else if (menu->select > menu->scroll + SOLO_OPT_VISIBLE_COUNT - 1) {
-        menu->scroll = menu->select - (SOLO_OPT_VISIBLE_COUNT - 1);
+    } else if (menu->select > menu->scroll + visibleCount - 1) {
+        menu->scroll = menu->select - (visibleCount - 1);
     }
 }
 
@@ -737,11 +761,11 @@ static void solo_update_open_menu(void) {
 
 static const struct SoloOption sMainOptions[] = {
     { "CONTROLS",    SOLO_OPT_SUBMENU, .submenu = &sMenuControls },
+    { "CAMERA",      SOLO_OPT_SUBMENU, .submenu = &sMenuCamera },
     { "DISPLAY",     SOLO_OPT_SUBMENU, .submenu = &sMenuDisplay },
     { "SOUND",       SOLO_OPT_SUBMENU, .submenu = &sMenuSound },
-    { "EXIT GAME",   SOLO_OPT_ACTION,  .action = solo_exit_game },
     { "PLAYER",      SOLO_OPT_SUBMENU, .submenu = &sMenuPlayer },
-    { "CAMERA",      SOLO_OPT_SUBMENU, .submenu = &sMenuCamera },
+    { "EXIT GAME",   SOLO_OPT_ACTION,  .action = solo_exit_game },
 };
 
 static const struct SoloOption sPlayerOptions[] = {

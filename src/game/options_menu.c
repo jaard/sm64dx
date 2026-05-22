@@ -31,6 +31,7 @@
 #define SOLO_OPT_VISIBLE_COUNT 4
 #define SOLO_OPT_MAIN_VISIBLE_COUNT 6
 #define SOLO_OPT_BUF_SIZE 64
+#define SOLO_OPT_VALUE_Y_OFFSET 14
 #define SOLO_MSAA_ORIGINAL_UNSET ((u32)-1)
 
 enum SoloOptionType {
@@ -583,7 +584,7 @@ static void solo_draw_bind_option(const struct SoloOption *opt, s16 y, bool sele
             solo_format_bind_value(opt->uval[i], valueBuf, sizeof(valueBuf));
         }
 
-        solo_text(sBindSlotX[i], y - 13, valueBuf, selected && sBindIndex == i);
+        solo_text(sBindSlotX[i], y - SOLO_OPT_VALUE_Y_OFFSET, valueBuf, selected && sBindIndex == i);
     }
 }
 
@@ -620,10 +621,12 @@ static s16 solo_menu_row_start(const struct SoloMenu *menu) {
 }
 
 static s16 solo_menu_row_step(const struct SoloMenu *menu) {
+    if (menu == &sMenuControls) { return 34; }
     return menu == &sMenuMain ? 24 : 32;
 }
 
 static s16 solo_menu_row_min(const struct SoloMenu *menu) {
+    if (menu == &sMenuControls) { return 20; }
     return menu == &sMenuMain ? 20 : 32;
 }
 
@@ -664,9 +667,9 @@ static void solo_draw_menu(void) {
         }
         if (value != NULL && opt->type != SOLO_OPT_BIND) {
             if (enabled) {
-                solo_text(160, y - 13, value, selected);
+                solo_text(160, y - SOLO_OPT_VALUE_Y_OFFSET, value, selected);
             } else {
-                solo_text_disabled(160, y - 13, value);
+                solo_text_disabled(160, y - SOLO_OPT_VALUE_Y_OFFSET, value);
             }
         }
     }

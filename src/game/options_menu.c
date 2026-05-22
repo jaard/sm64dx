@@ -29,7 +29,9 @@
 #include "types.h"
 
 #define SOLO_OPT_VISIBLE_COUNT 4
+#define SOLO_OPT_MAIN_VISIBLE_COUNT 6
 #define SOLO_OPT_BUF_SIZE 64
+#define SOLO_OPT_VALUE_Y_OFFSET 14
 #define SOLO_MSAA_ORIGINAL_UNSET ((u32)-1)
 
 enum SoloOptionType {
@@ -200,6 +202,7 @@ static void solo_menu_open(void) {
     sCurrentMenu = &sMenuMain;
     sInputTimer = 0;
     sHoldCount = 0;
+    sPalettesLoaded = false;
     if (sMsaaOriginal == SOLO_MSAA_ORIGINAL_UNSET) { sMsaaOriginal = configWindow.msaa; }
 }
 
@@ -249,6 +252,12 @@ static u32 solo_player_palette_index(struct PlayerPalette palette) {
         }
     }
     return 0;
+}
+
+static u32 solo_player_current_palette_index(void) {
+    sPalettePresetIndex = solo_player_palette_index(configPlayerPalette);
+    if (sPalettePresetIndex > gPresetPaletteCount) { sPalettePresetIndex = 0; }
+    return sPalettePresetIndex;
 }
 
 static void solo_player_apply_palette(struct PlayerPalette palette) {
@@ -331,7 +340,7 @@ static const char *solo_character_value(UNUSED const struct SoloOption *opt, UNU
 
 static const char *solo_palette_value(UNUSED const struct SoloOption *opt, UNUSED char *buf, UNUSED size_t size) {
     solo_player_load_palettes();
-    sPalettePresetIndex = solo_player_palette_index(configPlayerPalette);
+    solo_player_current_palette_index();
     if (sPalettePresetIndex == 0 || sPalettePresetIndex > gPresetPaletteCount) {
         return "CUSTOM";
     }
@@ -399,7 +408,13 @@ static void solo_change_palette(UNUSED const struct SoloOption *opt, s32 dir) {
     solo_player_load_palettes();
     if (gPresetPaletteCount == 0) { return; }
 
-    s32 index = solo_player_palette_index(configPlayerPalette) + dir;
+    s32 index = solo_player_current_palette_index();
+    if (index == 0) {
+        index = dir < 0 ? gPresetPaletteCount : 1;
+    } else {
+        index += dir;
+    }
+
     if (index < 1) {
         index = gPresetPaletteCount;
     } else if (index > gPresetPaletteCount) {
@@ -569,7 +584,7 @@ static void solo_draw_bind_option(const struct SoloOption *opt, s16 y, bool sele
             solo_format_bind_value(opt->uval[i], valueBuf, sizeof(valueBuf));
         }
 
-        solo_text(sBindSlotX[i], y - 13, valueBuf, selected && sBindIndex == i);
+        solo_text(sBindSlotX[i], y - SOLO_OPT_VALUE_Y_OFFSET, valueBuf, selected && sBindIndex == i);
     }
 }
 
@@ -597,11 +612,34 @@ static void solo_draw_prompt(void) {
     gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
 }
 
+static s8 solo_menu_visible_count(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? SOLO_OPT_MAIN_VISIBLE_COUNT : SOLO_OPT_VISIBLE_COUNT;
+}
+
+static s16 solo_menu_row_start(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? 150 : 140;
+}
+
+static s16 solo_menu_row_step(const struct SoloMenu *menu) {
+    if (menu == &sMenuControls) { return 34; }
+    return menu == &sMenuMain ? 24 : 32;
+}
+
+static s16 solo_menu_row_min(const struct SoloMenu *menu) {
+    if (menu == &sMenuControls) { return 20; }
+    return menu == &sMenuMain ? 20 : 32;
+}
+
 static void solo_draw_menu(void) {
     solo_draw_title();
 
-    if (sCurrentMenu->optCount > SOLO_OPT_VISIBLE_COUNT) {
-        s16 scrollpos = 54 * ((f32)sCurrentMenu->scroll / (sCurrentMenu->optCount - SOLO_OPT_VISIBLE_COUNT));
+    s8 visibleCount = solo_menu_visible_count(sCurrentMenu);
+    s16 rowStart = solo_menu_row_start(sCurrentMenu);
+    s16 rowStep = solo_menu_row_step(sCurrentMenu);
+    s16 rowMin = solo_menu_row_min(sCurrentMenu);
+
+    if (sCurrentMenu->optCount > visibleCount) {
+        s16 scrollpos = 54 * ((f32)sCurrentMenu->scroll / (sCurrentMenu->optCount - visibleCount));
         solo_draw_box(272, 90, 280, 208, 0x80, 0x80, 0x80);
         solo_draw_box(272, 90 + scrollpos, 280, 154 + scrollpos, 0xFF, 0xFF, 0xFF);
     }
@@ -610,8 +648,8 @@ static void solo_draw_menu(void) {
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 80, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     for (s8 i = 0; i < sCurrentMenu->optCount; i++) {
-        s16 y = 140 - 32 * i + sCurrentMenu->scroll * 32;
-        if (y > 140 || y <= 32) { continue; }
+        s16 y = rowStart - rowStep * i + sCurrentMenu->scroll * rowStep;
+        if (y > rowStart || y <= rowMin) { continue; }
 
         const struct SoloOption *opt = &sCurrentMenu->opts[i];
         bool selected = sCurrentMenu->select == i;
@@ -629,18 +667,20 @@ static void solo_draw_menu(void) {
         }
         if (value != NULL && opt->type != SOLO_OPT_BIND) {
             if (enabled) {
-                solo_text(160, y - 13, value, selected);
+                solo_text(160, y - SOLO_OPT_VALUE_Y_OFFSET, value, selected);
             } else {
-                solo_text_disabled(160, y - 13, value);
+                solo_text_disabled(160, y - SOLO_OPT_VALUE_Y_OFFSET, value);
             }
         }
     }
 
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     if (sCurrentMenu->optCount > 0) {
-        s16 arrowY = 132 - (32 * (sCurrentMenu->select - sCurrentMenu->scroll));
-        solo_text(72, arrowY, "<", false);
-        solo_text(232, arrowY, ">", false);
+        s16 arrowY = rowStart - 8 - rowStep * (sCurrentMenu->select - sCurrentMenu->scroll);
+        s16 arrowLeftX = sCurrentMenu == &sMenuControls ? 76 : 88;
+        s16 arrowRightX = sCurrentMenu == &sMenuControls ? 244 : 232;
+        solo_text(arrowLeftX, arrowY, "<", false);
+        solo_text(arrowRightX, arrowY, ">", false);
     }
     if (sCurrentMenu == &sMenuDisplay && sMsaaOriginal != SOLO_MSAA_ORIGINAL_UNSET && sMsaaOriginal != configWindow.msaa) {
         solo_text_color(160, 12, "Restart the game to apply changes.", 255, 160, 0);
@@ -652,6 +692,8 @@ static void solo_draw_menu(void) {
 
 static void solo_move_selection(s32 dir) {
     struct SoloMenu *menu = (struct SoloMenu *)sCurrentMenu;
+    s8 visibleCount = solo_menu_visible_count(menu);
+
     menu->select += dir;
     if (menu->select < 0) {
         menu->select = menu->optCount - 1;
@@ -661,8 +703,8 @@ static void solo_move_selection(s32 dir) {
 
     if (menu->select < menu->scroll) {
         menu->scroll = menu->select;
-    } else if (menu->select > menu->scroll + SOLO_OPT_VISIBLE_COUNT - 1) {
-        menu->scroll = menu->select - (SOLO_OPT_VISIBLE_COUNT - 1);
+    } else if (menu->select > menu->scroll + visibleCount - 1) {
+        menu->scroll = menu->select - (visibleCount - 1);
     }
 }
 
@@ -737,11 +779,11 @@ static void solo_update_open_menu(void) {
 
 static const struct SoloOption sMainOptions[] = {
     { "CONTROLS",    SOLO_OPT_SUBMENU, .submenu = &sMenuControls },
+    { "CAMERA",      SOLO_OPT_SUBMENU, .submenu = &sMenuCamera },
     { "DISPLAY",     SOLO_OPT_SUBMENU, .submenu = &sMenuDisplay },
     { "SOUND",       SOLO_OPT_SUBMENU, .submenu = &sMenuSound },
-    { "EXIT GAME",   SOLO_OPT_ACTION,  .action = solo_exit_game },
     { "PLAYER",      SOLO_OPT_SUBMENU, .submenu = &sMenuPlayer },
-    { "CAMERA",      SOLO_OPT_SUBMENU, .submenu = &sMenuCamera },
+    { "EXIT GAME",   SOLO_OPT_ACTION,  .action = solo_exit_game },
 };
 
 static const struct SoloOption sPlayerOptions[] = {

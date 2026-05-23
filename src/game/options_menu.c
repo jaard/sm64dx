@@ -858,13 +858,13 @@ static const struct SoloOption sDisplayOptions[] = {
 };
 
 static const struct SoloOption sSoundOptions[] = {
-    { "Master",           SOLO_OPT_RANGE,  .uval = &configMasterVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Music",            SOLO_OPT_RANGE,  .uval = &configMusicVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Sfx",              SOLO_OPT_RANGE,  .uval = &configSfxVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Environment",      SOLO_OPT_RANGE,  .uval = &configEnvVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Fadeout",          SOLO_OPT_BOOL,   .bval = &configFadeoutDistantSounds },
-    { "Mute Focus Loss",  SOLO_OPT_BOOL,   .bval = &configMuteFocusLoss },
-    { "Sound Options",    SOLO_OPT_ACTION, .action = solo_open_sound_panel },
+    { "Master",                 SOLO_OPT_RANGE,  .uval = &configMasterVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
+    { "Music",                  SOLO_OPT_RANGE,  .uval = &configMusicVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
+    { "Sfx",                    SOLO_OPT_RANGE,  .uval = &configSfxVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
+    { "Environment",            SOLO_OPT_RANGE,  .uval = &configEnvVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
+    { "Fade Distant Sounds",    SOLO_OPT_BOOL,   .bval = &configFadeoutDistantSounds },
+    { "Mute Unfocused Window",  SOLO_OPT_BOOL,   .bval = &configMuteFocusLoss },
+    { "Sound Options",          SOLO_OPT_ACTION, .action = solo_open_sound_panel },
 };
 
 static struct SoloMenu sMenuMain = { "OPTIONS", sMainOptions, ARRAY_COUNT(sMainOptions), 0, 0, NULL };

@@ -32,6 +32,40 @@
 #define SOLO_OPT_MAIN_VISIBLE_COUNT 6
 #define SOLO_OPT_BUF_SIZE 64
 #define SOLO_OPT_VALUE_Y_OFFSET 14
+#define SOLO_OPT_LABEL_X 40
+#define SOLO_OPT_VALUE_RIGHT_X 280
+#define SOLO_OPT_VALUE_SYMBOL_GAP 8
+#define SOLO_OPT_SUBMENU_ROW_START 140
+#define SOLO_OPT_SUBMENU_ROW_STEP 24
+#define SOLO_OPT_SUBMENU_ROW_MIN 32
+#define SOLO_OPT_SCROLLBAR_MAIN_X1 272
+#define SOLO_OPT_SCROLLBAR_MAIN_X2 280
+#define SOLO_OPT_SCROLLBAR_SUBMENU_X1 304
+#define SOLO_OPT_SCROLLBAR_SUBMENU_X2 312
+#define SOLO_OPT_SCROLLBAR_SUBMENU_Y1 84
+#define SOLO_OPT_SCROLLBAR_THUMB_HEIGHT 36
+#define SOLO_OPT_TEXT_HEIGHT 16
+#define SOLO_OPT_BIND_SLOT_1_RIGHT_X 176
+#define SOLO_OPT_BIND_SLOT_2_RIGHT_X 228
+#define SOLO_OPT_BIND_SLOT_3_RIGHT_X 280
+#define SOLO_COLOR_WHITE_R 255
+#define SOLO_COLOR_WHITE_G 255
+#define SOLO_COLOR_WHITE_B 255
+#define SOLO_COLOR_SELECTED_R 128
+#define SOLO_COLOR_SELECTED_G 192
+#define SOLO_COLOR_SELECTED_B 255
+#define SOLO_COLOR_DISABLED_R 128
+#define SOLO_COLOR_DISABLED_G 128
+#define SOLO_COLOR_DISABLED_B 128
+#define SOLO_COLOR_VALUE_R 255
+#define SOLO_COLOR_VALUE_G 255
+#define SOLO_COLOR_VALUE_B 128
+#define SOLO_COLOR_ON_R 128
+#define SOLO_COLOR_ON_G 255
+#define SOLO_COLOR_ON_B 128
+#define SOLO_COLOR_OFF_R 255
+#define SOLO_COLOR_OFF_G 128
+#define SOLO_COLOR_OFF_B 128
 #define SOLO_MSAA_ORIGINAL_UNSET ((u32)-1)
 
 enum SoloOptionType {
@@ -547,12 +581,83 @@ static void solo_text_color(s16 x, s16 y, const char *ascii, u8 r, u8 g, u8 b) {
     print_generic_string(textX, y, text);
 }
 
+static void solo_text_left_color(s16 x, s16 y, const char *ascii, u8 r, u8 g, u8 b) {
+    u8 text[SOLO_OPT_BUF_SIZE] = { DIALOG_CHAR_TERMINATOR };
+    convert_string_ascii_to_sm64(text, ascii, false);
+
+    gDPSetEnvColor(gDisplayListHead++, 0, 0, 0, 255);
+    print_generic_string(x + 1, y - 1, text);
+    gDPSetEnvColor(gDisplayListHead++, r, g, b, 255);
+    print_generic_string(x, y, text);
+}
+
+static void solo_text_right_color(s16 rightX, s16 y, const char *ascii, u8 r, u8 g, u8 b) {
+    u8 text[SOLO_OPT_BUF_SIZE] = { DIALOG_CHAR_TERMINATOR };
+    convert_string_ascii_to_sm64(text, ascii, false);
+    s16 textX = rightX - (s16)get_generic_dialog_width(text);
+
+    gDPSetEnvColor(gDisplayListHead++, 0, 0, 0, 255);
+    print_generic_string(textX + 1, y - 1, text);
+    gDPSetEnvColor(gDisplayListHead++, r, g, b, 255);
+    print_generic_string(textX, y, text);
+}
+
+static s16 solo_text_width(const char *ascii) {
+    u8 text[SOLO_OPT_BUF_SIZE] = { DIALOG_CHAR_TERMINATOR };
+    convert_string_ascii_to_sm64(text, ascii, false);
+    return (s16)get_generic_dialog_width(text);
+}
+
 static void solo_text(s16 x, s16 y, const char *ascii, bool selected) {
-    solo_text_color(x, y, ascii, 255, selected ? 32 : 255, selected ? 32 : 255);
+    if (selected) {
+        solo_text_color(x, y, ascii, SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+    } else {
+        solo_text_color(x, y, ascii, SOLO_COLOR_WHITE_R, SOLO_COLOR_WHITE_G, SOLO_COLOR_WHITE_B);
+    }
 }
 
 static void solo_text_disabled(s16 x, s16 y, const char *ascii) {
-    solo_text_color(x, y, ascii, 128, 128, 128);
+    solo_text_color(x, y, ascii, SOLO_COLOR_DISABLED_R, SOLO_COLOR_DISABLED_G, SOLO_COLOR_DISABLED_B);
+}
+
+static void solo_text_label(s16 x, s16 y, const char *ascii, bool selected, bool enabled) {
+    if (!enabled) {
+        solo_text_left_color(x, y, ascii, SOLO_COLOR_DISABLED_R, SOLO_COLOR_DISABLED_G, SOLO_COLOR_DISABLED_B);
+    } else if (selected) {
+        solo_text_left_color(x, y, ascii, SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+    } else {
+        solo_text_left_color(x, y, ascii, SOLO_COLOR_WHITE_R, SOLO_COLOR_WHITE_G, SOLO_COLOR_WHITE_B);
+    }
+}
+
+static void solo_text_value(s16 rightX, s16 y, const struct SoloOption *opt, const char *ascii, bool selected, bool enabled) {
+    if (!enabled) {
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_DISABLED_R, SOLO_COLOR_DISABLED_G, SOLO_COLOR_DISABLED_B);
+    } else if (opt->type == SOLO_OPT_BOOL && opt->bval != NULL) {
+        if (*opt->bval) {
+            solo_text_right_color(rightX, y, ascii, SOLO_COLOR_ON_R, SOLO_COLOR_ON_G, SOLO_COLOR_ON_B);
+        } else {
+            solo_text_right_color(rightX, y, ascii, SOLO_COLOR_OFF_R, SOLO_COLOR_OFF_G, SOLO_COLOR_OFF_B);
+        }
+    } else if (selected) {
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+    } else {
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_VALUE_R, SOLO_COLOR_VALUE_G, SOLO_COLOR_VALUE_B);
+    }
+}
+
+static void solo_text_bind_value(s16 rightX, s16 y, const char *ascii, bool selected) {
+    if (selected) {
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+    } else {
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_VALUE_R, SOLO_COLOR_VALUE_G, SOLO_COLOR_VALUE_B);
+    }
+}
+
+static s16 solo_bind_slot_right_x(u8 index) {
+    static const s16 sBindSlotRightX[] = { SOLO_OPT_BIND_SLOT_1_RIGHT_X, SOLO_OPT_BIND_SLOT_2_RIGHT_X, SOLO_OPT_BIND_SLOT_3_RIGHT_X };
+    if (index >= ARRAY_COUNT(sBindSlotRightX)) { return SOLO_OPT_BIND_SLOT_3_RIGHT_X; }
+    return sBindSlotRightX[index];
 }
 
 static void solo_format_bind_value(u32 bind, char *buf, size_t size) {
@@ -573,18 +678,17 @@ static void solo_format_bind_value(u32 bind, char *buf, size_t size) {
 }
 
 static void solo_draw_bind_option(const struct SoloOption *opt, s16 y, bool selected) {
-    static const s16 sBindSlotX[] = { 112, 160, 208 };
     char valueBuf[SOLO_OPT_BUF_SIZE];
 
-    solo_text(160, y, opt->label, selected);
-    for (u8 i = 0; i < ARRAY_COUNT(sBindSlotX); i++) {
+    solo_text_label(SOLO_OPT_LABEL_X, y, opt->label, selected, true);
+    for (u8 i = 0; i < MAX_BINDS; i++) {
         if (sBindingOption == opt && sBindIndex == i) {
             snprintf(valueBuf, sizeof(valueBuf), "...");
         } else {
             solo_format_bind_value(opt->uval[i], valueBuf, sizeof(valueBuf));
         }
 
-        solo_text(sBindSlotX[i], y - SOLO_OPT_VALUE_Y_OFFSET, valueBuf, selected && sBindIndex == i);
+        solo_text_bind_value(solo_bind_slot_right_x(i), y, valueBuf, selected && sBindIndex == i);
     }
 }
 
@@ -612,36 +716,85 @@ static void solo_draw_prompt(void) {
     gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
 }
 
-static s8 solo_menu_visible_count(const struct SoloMenu *menu) {
+static s8 solo_menu_scroll_trigger_count(const struct SoloMenu *menu) {
     return menu == &sMenuMain ? SOLO_OPT_MAIN_VISIBLE_COUNT : SOLO_OPT_VISIBLE_COUNT;
 }
 
 static s16 solo_menu_row_start(const struct SoloMenu *menu) {
-    return menu == &sMenuMain ? 150 : 140;
+    return menu == &sMenuMain ? 150 : SOLO_OPT_SUBMENU_ROW_START;
 }
 
 static s16 solo_menu_row_step(const struct SoloMenu *menu) {
-    if (menu == &sMenuControls) { return 34; }
-    return menu == &sMenuMain ? 24 : 32;
+    return menu == &sMenuMain ? 24 : SOLO_OPT_SUBMENU_ROW_STEP;
 }
 
 static s16 solo_menu_row_min(const struct SoloMenu *menu) {
-    if (menu == &sMenuControls) { return 20; }
-    return menu == &sMenuMain ? 20 : 32;
+    return menu == &sMenuMain ? 20 : SOLO_OPT_SUBMENU_ROW_MIN;
+}
+
+static s8 solo_menu_rendered_count(const struct SoloMenu *menu) {
+    s16 rowStart = solo_menu_row_start(menu);
+    s16 rowStep = solo_menu_row_step(menu);
+    s16 rowMin = solo_menu_row_min(menu);
+    return ((rowStart - rowMin - 1) / rowStep) + 1;
+}
+
+static s8 solo_menu_max_scroll(const struct SoloMenu *menu) {
+    s8 maxScroll = menu->optCount - solo_menu_rendered_count(menu);
+    return maxScroll > 0 ? maxScroll : 0;
+}
+
+static s16 solo_menu_scrollbar_x1(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? SOLO_OPT_SCROLLBAR_MAIN_X1 : SOLO_OPT_SCROLLBAR_SUBMENU_X1;
+}
+
+static s16 solo_menu_scrollbar_x2(const struct SoloMenu *menu) {
+    return menu == &sMenuMain ? SOLO_OPT_SCROLLBAR_MAIN_X2 : SOLO_OPT_SCROLLBAR_SUBMENU_X2;
+}
+
+static s16 solo_menu_scrollbar_y1(const struct SoloMenu *menu) {
+    if (menu == &sMenuMain) { return 90; }
+    return SOLO_OPT_SCROLLBAR_SUBMENU_Y1;
+}
+
+static s16 solo_menu_scrollbar_y2(const struct SoloMenu *menu, s16 rowStep, s8 visibleCount) {
+    if (menu == &sMenuMain) { return 208; }
+    return solo_menu_scrollbar_y1(menu) + rowStep * (visibleCount - 1) + SOLO_OPT_TEXT_HEIGHT;
+}
+
+static bool solo_option_has_adjustable_value(const struct SoloOption *opt) {
+    return opt->type == SOLO_OPT_BOOL
+        || opt->type == SOLO_OPT_CHOICE
+        || opt->type == SOLO_OPT_RANGE
+        || opt->type == SOLO_OPT_BIND;
+}
+
+static void solo_draw_selected_value_symbols(s16 rightX, s16 y, const char *value) {
+    s16 valueWidth = solo_text_width(value);
+    s16 symbolWidth = solo_text_width("<");
+    s16 valueLeft = rightX - valueWidth;
+
+    solo_text_left_color(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - symbolWidth, y, "<", SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+    solo_text_left_color(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, ">", SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
 }
 
 static void solo_draw_menu(void) {
     solo_draw_title();
 
-    s8 visibleCount = solo_menu_visible_count(sCurrentMenu);
+    s8 renderedCount = solo_menu_rendered_count(sCurrentMenu);
     s16 rowStart = solo_menu_row_start(sCurrentMenu);
     s16 rowStep = solo_menu_row_step(sCurrentMenu);
     s16 rowMin = solo_menu_row_min(sCurrentMenu);
 
-    if (sCurrentMenu->optCount > visibleCount) {
-        s16 scrollpos = 54 * ((f32)sCurrentMenu->scroll / (sCurrentMenu->optCount - visibleCount));
-        solo_draw_box(272, 90, 280, 208, 0x80, 0x80, 0x80);
-        solo_draw_box(272, 90 + scrollpos, 280, 154 + scrollpos, 0xFF, 0xFF, 0xFF);
+    if (sCurrentMenu->optCount > renderedCount) {
+        s16 scrollbarX1 = solo_menu_scrollbar_x1(sCurrentMenu);
+        s16 scrollbarX2 = solo_menu_scrollbar_x2(sCurrentMenu);
+        s16 scrollbarY1 = solo_menu_scrollbar_y1(sCurrentMenu);
+        s16 scrollbarY2 = solo_menu_scrollbar_y2(sCurrentMenu, rowStep, renderedCount);
+        s16 scrollTrack = scrollbarY2 - scrollbarY1 - SOLO_OPT_SCROLLBAR_THUMB_HEIGHT;
+        s16 scrollpos = scrollTrack * ((f32)sCurrentMenu->scroll / solo_menu_max_scroll(sCurrentMenu));
+        solo_draw_box(scrollbarX1, scrollbarY1, scrollbarX2, scrollbarY2, 0x80, 0x80, 0x80);
+        solo_draw_box(scrollbarX1, scrollbarY1 + scrollpos, scrollbarX2, scrollbarY1 + scrollpos + SOLO_OPT_SCROLLBAR_THUMB_HEIGHT, 0xFF, 0xFF, 0xFF);
     }
 
     gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);
@@ -654,34 +807,46 @@ static void solo_draw_menu(void) {
         const struct SoloOption *opt = &sCurrentMenu->opts[i];
         bool selected = sCurrentMenu->select == i;
         bool enabled = opt->enabled == NULL || opt->enabled(opt);
-        s16 labelY = (opt->type == SOLO_OPT_SUBMENU || opt->type == SOLO_OPT_ACTION || opt->type == SOLO_OPT_BACK) ? y - 6 : y;
         char valueBuf[SOLO_OPT_BUF_SIZE];
         const char *value = solo_option_value(opt, valueBuf, sizeof(valueBuf));
 
-        if (opt->type == SOLO_OPT_BIND) {
-            solo_draw_bind_option(opt, y, selected);
-        } else if (!enabled) {
-            solo_text_disabled(160, labelY, opt->label);
-        } else {
-            solo_text(160, labelY, opt->label, selected);
-        }
-        if (value != NULL && opt->type != SOLO_OPT_BIND) {
-            if (enabled) {
-                solo_text(160, y - SOLO_OPT_VALUE_Y_OFFSET, value, selected);
+        if (sCurrentMenu == &sMenuMain) {
+            s16 labelY = (opt->type == SOLO_OPT_SUBMENU || opt->type == SOLO_OPT_ACTION || opt->type == SOLO_OPT_BACK) ? y - 6 : y;
+            if (!enabled) {
+                solo_text_disabled(160, labelY, opt->label);
             } else {
-                solo_text_disabled(160, y - SOLO_OPT_VALUE_Y_OFFSET, value);
+                solo_text(160, labelY, opt->label, selected);
+            }
+            if (value != NULL) {
+                if (enabled) {
+                    solo_text(160, y - SOLO_OPT_VALUE_Y_OFFSET, value, selected);
+                } else {
+                    solo_text_disabled(160, y - SOLO_OPT_VALUE_Y_OFFSET, value);
+                }
+            }
+        } else if (opt->type == SOLO_OPT_BIND) {
+            solo_draw_bind_option(opt, y, selected);
+            if (selected && enabled) {
+                char bindBuf[SOLO_OPT_BUF_SIZE];
+                if (sBindingOption == opt) {
+                    snprintf(bindBuf, sizeof(bindBuf), "...");
+                } else {
+                    solo_format_bind_value(opt->uval[sBindIndex], bindBuf, sizeof(bindBuf));
+                }
+                solo_draw_selected_value_symbols(solo_bind_slot_right_x(sBindIndex), y, bindBuf);
+            }
+        } else {
+            solo_text_label(SOLO_OPT_LABEL_X, y, opt->label, selected, enabled);
+            if (value != NULL) {
+                solo_text_value(SOLO_OPT_VALUE_RIGHT_X, y, opt, value, selected, enabled);
+            }
+            if (selected && enabled && solo_option_has_adjustable_value(opt)) {
+                solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value);
             }
         }
     }
 
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    if (sCurrentMenu->optCount > 0) {
-        s16 arrowY = rowStart - 8 - rowStep * (sCurrentMenu->select - sCurrentMenu->scroll);
-        s16 arrowLeftX = sCurrentMenu == &sMenuControls ? 76 : 88;
-        s16 arrowRightX = sCurrentMenu == &sMenuControls ? 244 : 232;
-        solo_text(arrowLeftX, arrowY, "<", false);
-        solo_text(arrowRightX, arrowY, ">", false);
-    }
     if (sCurrentMenu == &sMenuDisplay && sMsaaOriginal != SOLO_MSAA_ORIGINAL_UNSET && sMsaaOriginal != configWindow.msaa) {
         solo_text_color(160, 12, "Restart the game to apply changes.", 255, 160, 0);
     }
@@ -692,7 +857,8 @@ static void solo_draw_menu(void) {
 
 static void solo_move_selection(s32 dir) {
     struct SoloMenu *menu = (struct SoloMenu *)sCurrentMenu;
-    s8 visibleCount = solo_menu_visible_count(menu);
+    s8 visibleCount = solo_menu_scroll_trigger_count(menu);
+    s8 maxScroll = solo_menu_max_scroll(menu);
 
     menu->select += dir;
     if (menu->select < 0) {
@@ -705,6 +871,9 @@ static void solo_move_selection(s32 dir) {
         menu->scroll = menu->select;
     } else if (menu->select > menu->scroll + visibleCount - 1) {
         menu->scroll = menu->select - (visibleCount - 1);
+    }
+    if (menu->scroll > maxScroll) {
+        menu->scroll = maxScroll;
     }
 }
 

@@ -28,7 +28,6 @@
 #include "sm64.h"
 #include "types.h"
 
-#define SOLO_OPT_VISIBLE_COUNT 4
 #define SOLO_OPT_MAIN_VISIBLE_COUNT 6
 #define SOLO_OPT_BUF_SIZE 64
 #define SOLO_OPT_VALUE_Y_OFFSET 14
@@ -716,10 +715,6 @@ static void solo_draw_prompt(void) {
     gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
 }
 
-static s8 solo_menu_scroll_trigger_count(const struct SoloMenu *menu) {
-    return menu == &sMenuMain ? SOLO_OPT_MAIN_VISIBLE_COUNT : SOLO_OPT_VISIBLE_COUNT;
-}
-
 static s16 solo_menu_row_start(const struct SoloMenu *menu) {
     return menu == &sMenuMain ? 150 : SOLO_OPT_SUBMENU_ROW_START;
 }
@@ -742,6 +737,10 @@ static s8 solo_menu_rendered_count(const struct SoloMenu *menu) {
 static s8 solo_menu_max_scroll(const struct SoloMenu *menu) {
     s8 maxScroll = menu->optCount - solo_menu_rendered_count(menu);
     return maxScroll > 0 ? maxScroll : 0;
+}
+
+static s8 solo_menu_scroll_center_offset(const struct SoloMenu *menu) {
+    return solo_menu_rendered_count(menu) / 2;
 }
 
 static s16 solo_menu_scrollbar_x1(const struct SoloMenu *menu) {
@@ -857,7 +856,7 @@ static void solo_draw_menu(void) {
 
 static void solo_move_selection(s32 dir) {
     struct SoloMenu *menu = (struct SoloMenu *)sCurrentMenu;
-    s8 visibleCount = solo_menu_scroll_trigger_count(menu);
+    s8 centerOffset = solo_menu_scroll_center_offset(menu);
     s8 maxScroll = solo_menu_max_scroll(menu);
 
     menu->select += dir;
@@ -867,14 +866,9 @@ static void solo_move_selection(s32 dir) {
         menu->select = 0;
     }
 
-    if (menu->select < menu->scroll) {
-        menu->scroll = menu->select;
-    } else if (menu->select > menu->scroll + visibleCount - 1) {
-        menu->scroll = menu->select - (visibleCount - 1);
-    }
-    if (menu->scroll > maxScroll) {
-        menu->scroll = maxScroll;
-    }
+    menu->scroll = menu->select - centerOffset;
+    if (menu->scroll < 0) { menu->scroll = 0; }
+    if (menu->scroll > maxScroll) { menu->scroll = maxScroll; }
 }
 
 static bool solo_allow_input(void) {

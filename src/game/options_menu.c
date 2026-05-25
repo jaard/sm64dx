@@ -632,7 +632,7 @@ static void solo_text_label(s16 x, s16 y, const char *ascii, bool selected, bool
     }
 }
 
-static struct SoloTextColor solo_value_color(const struct SoloOption *opt, const char *value, bool enabled) {
+static struct SoloTextColor solo_value_color(const struct SoloOption *opt, const char *value, bool selected, bool enabled) {
     if (!enabled) {
         return (struct SoloTextColor) { SOLO_COLOR_DISABLED_R, SOLO_COLOR_DISABLED_G, SOLO_COLOR_DISABLED_B };
     }
@@ -653,11 +653,14 @@ static struct SoloTextColor solo_value_color(const struct SoloOption *opt, const
         }
         return (struct SoloTextColor) { SOLO_COLOR_OFF_R, SOLO_COLOR_OFF_G, SOLO_COLOR_OFF_B };
     }
+    if (selected) {
+        return (struct SoloTextColor) { SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B };
+    }
     return (struct SoloTextColor) { SOLO_COLOR_WHITE_R, SOLO_COLOR_WHITE_G, SOLO_COLOR_WHITE_B };
 }
 
-static void solo_text_value(s16 rightX, s16 y, const struct SoloOption *opt, const char *ascii, bool enabled) {
-    struct SoloTextColor color = solo_value_color(opt, ascii, enabled);
+static void solo_text_value(s16 rightX, s16 y, const struct SoloOption *opt, const char *ascii, bool selected, bool enabled) {
+    struct SoloTextColor color = solo_value_color(opt, ascii, selected, enabled);
     solo_text_right_color(rightX, y, ascii, color.r, color.g, color.b);
 }
 
@@ -867,10 +870,10 @@ static void solo_draw_menu(void) {
         } else {
             solo_text_label(SOLO_OPT_LABEL_X, y, opt->label, selected, enabled);
             if (value != NULL) {
-                solo_text_value(SOLO_OPT_VALUE_RIGHT_X, y, opt, value, enabled);
+                solo_text_value(SOLO_OPT_VALUE_RIGHT_X, y, opt, value, selected, enabled);
             }
             if (selected && enabled && solo_option_has_adjustable_value(opt)) {
-                solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value, solo_value_color(opt, value, enabled));
+                solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value, solo_value_color(opt, value, selected, enabled));
             }
         }
     }

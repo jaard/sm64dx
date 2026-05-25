@@ -56,9 +56,6 @@
 #define SOLO_COLOR_DISABLED_R 128
 #define SOLO_COLOR_DISABLED_G 128
 #define SOLO_COLOR_DISABLED_B 128
-#define SOLO_COLOR_VALUE_R 255
-#define SOLO_COLOR_VALUE_G 255
-#define SOLO_COLOR_VALUE_B 128
 #define SOLO_COLOR_ON_R 128
 #define SOLO_COLOR_ON_G 255
 #define SOLO_COLOR_ON_B 128
@@ -122,6 +119,12 @@ struct SoloMenu {
     s8 select;
     s8 scroll;
     const struct SoloMenu *parent;
+};
+
+struct SoloTextColor {
+    u8 r;
+    u8 g;
+    u8 b;
 };
 
 static bool sSoloOptionsOpen = false;
@@ -629,27 +632,29 @@ static void solo_text_label(s16 x, s16 y, const char *ascii, bool selected, bool
     }
 }
 
-static void solo_text_value(s16 rightX, s16 y, const struct SoloOption *opt, const char *ascii, bool selected, bool enabled) {
+static struct SoloTextColor solo_value_color(const struct SoloOption *opt, bool enabled) {
     if (!enabled) {
-        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_DISABLED_R, SOLO_COLOR_DISABLED_G, SOLO_COLOR_DISABLED_B);
-    } else if (opt->type == SOLO_OPT_BOOL && opt->bval != NULL) {
-        if (*opt->bval) {
-            solo_text_right_color(rightX, y, ascii, SOLO_COLOR_ON_R, SOLO_COLOR_ON_G, SOLO_COLOR_ON_B);
-        } else {
-            solo_text_right_color(rightX, y, ascii, SOLO_COLOR_OFF_R, SOLO_COLOR_OFF_G, SOLO_COLOR_OFF_B);
-        }
-    } else if (selected) {
-        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
-    } else {
-        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_VALUE_R, SOLO_COLOR_VALUE_G, SOLO_COLOR_VALUE_B);
+        return (struct SoloTextColor) { SOLO_COLOR_DISABLED_R, SOLO_COLOR_DISABLED_G, SOLO_COLOR_DISABLED_B };
     }
+    if (opt->type == SOLO_OPT_BOOL && opt->bval != NULL) {
+        if (*opt->bval) {
+            return (struct SoloTextColor) { SOLO_COLOR_ON_R, SOLO_COLOR_ON_G, SOLO_COLOR_ON_B };
+        }
+        return (struct SoloTextColor) { SOLO_COLOR_OFF_R, SOLO_COLOR_OFF_G, SOLO_COLOR_OFF_B };
+    }
+    return (struct SoloTextColor) { SOLO_COLOR_WHITE_R, SOLO_COLOR_WHITE_G, SOLO_COLOR_WHITE_B };
+}
+
+static void solo_text_value(s16 rightX, s16 y, const struct SoloOption *opt, const char *ascii, bool enabled) {
+    struct SoloTextColor color = solo_value_color(opt, enabled);
+    solo_text_right_color(rightX, y, ascii, color.r, color.g, color.b);
 }
 
 static void solo_text_bind_value(s16 rightX, s16 y, const char *ascii, bool selected) {
     if (selected) {
-        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_WHITE_R, SOLO_COLOR_WHITE_G, SOLO_COLOR_WHITE_B);
     } else {
-        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_VALUE_R, SOLO_COLOR_VALUE_G, SOLO_COLOR_VALUE_B);
+        solo_text_right_color(rightX, y, ascii, SOLO_COLOR_WHITE_R, SOLO_COLOR_WHITE_G, SOLO_COLOR_WHITE_B);
     }
 }
 
@@ -768,13 +773,13 @@ static bool solo_option_has_adjustable_value(const struct SoloOption *opt) {
         || opt->type == SOLO_OPT_BIND;
 }
 
-static void solo_draw_selected_value_symbols(s16 rightX, s16 y, const char *value) {
+static void solo_draw_selected_value_symbols(s16 rightX, s16 y, const char *value, struct SoloTextColor color) {
     s16 valueWidth = solo_text_width(value);
     s16 symbolWidth = solo_text_width("<");
     s16 valueLeft = rightX - valueWidth;
 
-    solo_text_left_color(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - symbolWidth, y, "<", SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
-    solo_text_left_color(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, ">", SOLO_COLOR_SELECTED_R, SOLO_COLOR_SELECTED_G, SOLO_COLOR_SELECTED_B);
+    solo_text_left_color(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - symbolWidth, y, "<", color.r, color.g, color.b);
+    solo_text_left_color(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, ">", color.r, color.g, color.b);
 }
 
 static void solo_draw_menu(void) {
@@ -832,15 +837,15 @@ static void solo_draw_menu(void) {
                 } else {
                     solo_format_bind_value(opt->uval[sBindIndex], bindBuf, sizeof(bindBuf));
                 }
-                solo_draw_selected_value_symbols(solo_bind_slot_right_x(sBindIndex), y, bindBuf);
+                solo_draw_selected_value_symbols(solo_bind_slot_right_x(sBindIndex), y, bindBuf, solo_value_color(opt, enabled));
             }
         } else {
             solo_text_label(SOLO_OPT_LABEL_X, y, opt->label, selected, enabled);
             if (value != NULL) {
-                solo_text_value(SOLO_OPT_VALUE_RIGHT_X, y, opt, value, selected, enabled);
+                solo_text_value(SOLO_OPT_VALUE_RIGHT_X, y, opt, value, enabled);
             }
             if (selected && enabled && solo_option_has_adjustable_value(opt)) {
-                solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value);
+                solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value, solo_value_color(opt, enabled));
             }
         }
     }

@@ -35,7 +35,7 @@
 #define SOLO_OPT_VALUE_RIGHT_X 280
 #define SOLO_OPT_VALUE_SYMBOL_GAP 8
 #define SOLO_OPT_VALUE_SYMBOL_WIDTH 8
-#define SOLO_OPT_USE_CUSTOM_VALUE_MARKERS 1
+#define SOLO_OPT_USE_CUSTOM_VALUE_ARROWS 1
 #define SOLO_OPT_SUBMENU_ROW_START 140
 #define SOLO_OPT_SUBMENU_ROW_STEP 24
 #define SOLO_OPT_SUBMENU_ROW_MIN 32
@@ -129,7 +129,7 @@ struct SoloTextColor {
     u8 b;
 };
 
-static const Texture sSoloValueSymbolLeftTexture[] = {
+static const Texture sSoloArrowSymbolLeftTexture[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00,
     0x00, 0x00, 0x0F, 0x00, 0x00, 0xF0, 0x00, 0x00,
@@ -140,7 +140,7 @@ static const Texture sSoloValueSymbolLeftTexture[] = {
     0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
 };
 
-static const Texture sSoloValueSymbolRightTexture[] = {
+static const Texture sSoloArrowSymbolRightTexture[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
@@ -597,7 +597,7 @@ static void solo_draw_box(s16 x1, s16 y1, s16 x2, s16 y2, u8 r, u8 g, u8 b) {
 }
 
 static void solo_draw_custom_value_marker_texture(s16 x, s16 y, bool right, u8 r, u8 g, u8 b) {
-    const Texture *texture = right ? sSoloValueSymbolRightTexture : sSoloValueSymbolLeftTexture;
+    const Texture *texture = right ? sSoloArrowSymbolRightTexture : sSoloArrowSymbolLeftTexture;
 
     create_dl_translation_matrix(MENU_MTX_PUSH, x, y, 0.0f);
     gDPSetEnvColor(gDisplayListHead++, r, g, b, 255);
@@ -853,7 +853,7 @@ static void solo_draw_selected_value_symbols(s16 rightX, s16 y, const char *valu
     s16 valueWidth = solo_text_width(value);
     s16 valueLeft = rightX - valueWidth;
 
-    if (SOLO_OPT_USE_CUSTOM_VALUE_MARKERS) {
+    if (SOLO_OPT_USE_CUSTOM_VALUE_ARROWS) {
         solo_draw_custom_value_marker(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - SOLO_OPT_VALUE_SYMBOL_WIDTH, y, false, color);
         solo_draw_custom_value_marker(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, true, color);
     } else {

@@ -34,6 +34,8 @@
 #define SOLO_OPT_LABEL_X 40
 #define SOLO_OPT_VALUE_RIGHT_X 280
 #define SOLO_OPT_VALUE_SYMBOL_GAP 8
+#define SOLO_OPT_VALUE_SYMBOL_WIDTH 8
+#define SOLO_OPT_USE_CUSTOM_VALUE_MARKERS 1
 #define SOLO_OPT_SUBMENU_ROW_START 140
 #define SOLO_OPT_SUBMENU_ROW_STEP 24
 #define SOLO_OPT_SUBMENU_ROW_MIN 32
@@ -125,6 +127,28 @@ struct SoloTextColor {
     u8 r;
     u8 g;
     u8 b;
+};
+
+static const Texture sSoloValueSymbolLeftTexture[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00,
+    0x00, 0x00, 0x0F, 0x00, 0x00, 0xF0, 0x00, 0x00,
+    0x00, 0x00, 0x0F, 0xF0, 0x0F, 0xF0, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xF0, 0x0F, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
+};
+
+static const Texture sSoloValueSymbolRightTexture[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xF0, 0x0F, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x0F, 0xF0, 0x0F, 0xF0, 0x00, 0x00,
+    0x00, 0x00, 0x0F, 0x00, 0x00, 0xF0, 0x00, 0x00,
+    0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00,
 };
 
 static bool sSoloOptionsOpen = false;
@@ -572,6 +596,21 @@ static void solo_draw_box(s16 x1, s16 y1, s16 x2, s16 y2, u8 r, u8 g, u8 b) {
     gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
 }
 
+static void solo_draw_custom_value_marker_texture(s16 x, s16 y, bool right, u8 r, u8 g, u8 b) {
+    const Texture *texture = right ? sSoloValueSymbolRightTexture : sSoloValueSymbolLeftTexture;
+
+    create_dl_translation_matrix(MENU_MTX_PUSH, x, y, 0.0f);
+    gDPSetEnvColor(gDisplayListHead++, r, g, b, 255);
+    gDPSetTextureImage(gDisplayListHead++, G_IM_FMT_IA, G_IM_SIZ_16b, 1, VIRTUAL_TO_PHYSICAL(texture));
+    gSPDisplayList(gDisplayListHead++, dl_ia_text_tex_settings);
+    gSPPopMatrix(gDisplayListHead++, G_MTX_MODELVIEW);
+}
+
+static void solo_draw_custom_value_marker(s16 x, s16 y, bool right, struct SoloTextColor color) {
+    solo_draw_custom_value_marker_texture(x + 1, y - 1, right, 0, 0, 0);
+    solo_draw_custom_value_marker_texture(x, y, right, color.r, color.g, color.b);
+}
+
 static void solo_text_color(s16 x, s16 y, const char *ascii, u8 r, u8 g, u8 b) {
     u8 text[SOLO_OPT_BUF_SIZE] = { DIALOG_CHAR_TERMINATOR };
     convert_string_ascii_to_sm64(text, ascii, false);
@@ -812,11 +851,17 @@ static bool solo_option_has_adjustable_value(const struct SoloOption *opt) {
 
 static void solo_draw_selected_value_symbols(s16 rightX, s16 y, const char *value, struct SoloTextColor color) {
     s16 valueWidth = solo_text_width(value);
-    s16 symbolWidth = solo_text_width("<");
     s16 valueLeft = rightX - valueWidth;
 
-    solo_text_left_color(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - symbolWidth, y, "<", color.r, color.g, color.b);
-    solo_text_left_color(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, ">", color.r, color.g, color.b);
+    if (SOLO_OPT_USE_CUSTOM_VALUE_MARKERS) {
+        solo_draw_custom_value_marker(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - SOLO_OPT_VALUE_SYMBOL_WIDTH, y, false, color);
+        solo_draw_custom_value_marker(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, true, color);
+    } else {
+        s16 symbolWidth = solo_text_width("<");
+
+        solo_text_left_color(valueLeft - SOLO_OPT_VALUE_SYMBOL_GAP - symbolWidth, y, "<", color.r, color.g, color.b);
+        solo_text_left_color(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, ">", color.r, color.g, color.b);
+    }
 }
 
 static void solo_draw_menu(void) {

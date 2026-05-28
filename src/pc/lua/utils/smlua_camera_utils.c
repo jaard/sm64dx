@@ -146,11 +146,11 @@ bool camera_config_is_mouse_look_enabled(void) {
 }
 
 bool camera_config_is_x_inverted(void) {
-    return sOverrideCameraInvertX.override ? sOverrideCameraInvertX.value : configCameraInvertX;
+    return sOverrideCameraInvertX.override ? sOverrideCameraInvertX.value : configFreeCameraInvertX;
 }
 
 bool camera_config_is_y_inverted(void) {
-    return sOverrideCameraInvertY.override ? sOverrideCameraInvertY.value : configCameraInvertY;
+    return sOverrideCameraInvertY.override ? sOverrideCameraInvertY.value : configFreeCameraInvertY;
 }
 
 u32 camera_config_get_x_sensitivity(void) {

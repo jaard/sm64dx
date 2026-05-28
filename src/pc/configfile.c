@@ -132,6 +132,8 @@ bool         configUseStandardKeyBindingsChat     = false;
 bool         configSmoothScrolling                = false;
 // free camera settings
 bool         configEnableFreeCamera               = false;
+bool         configFreeCameraInvertX              = false;
+bool         configFreeCameraInvertY              = true;
 bool         configFreeCameraAnalog               = false;
 bool         configFreeCameraLCentering           = false;
 bool         configFreeCameraDPadBehavior         = false;
@@ -143,7 +145,13 @@ unsigned int configFreeCameraAggr                 = 0;
 unsigned int configFreeCameraPan                  = 0;
 unsigned int configFreeCameraDegrade              = 50; // 0 - 100%
 // romhack camera settings
-unsigned int configEnableRomhackCamera            = 0; // 0 for automatic, 1 for force on, 2 for force off
+unsigned int configEnableRomhackCamera            =
+#ifdef COOPDX_SOLO
+    2; // 0 for automatic, 1 for force on, 2 for force off
+#else
+    0; // 0 for automatic, 1 for force on, 2 for force off
+#endif
+bool         configRomhackCameraInvertX           = false;
 bool         configRomhackCameraBowserFights      = false;
 bool         configRomhackCameraHasCollision      = true;
 bool         configRomhackCameraHasCentering      = false;
@@ -151,8 +159,6 @@ bool         configRomhackCameraDPadBehavior      = false;
 bool         configRomhackCameraSlowFall          = true;
 
 // common camera settings
-bool         configCameraInvertX                  = false;
-bool         configCameraInvertY                  = true;
 bool         configCameraToxicGas                 = true;
 // debug
 bool         configLuaProfiler                    = false;
@@ -283,6 +289,8 @@ static const struct ConfigOption options[] = {
     {.name = "stick_invert_right_y",           .type = CONFIG_TYPE_BOOL, .boolValue = &configStick.invertRightY},
     // free camera settings
     {.name = "bettercam_enable",               .type = CONFIG_TYPE_BOOL, .boolValue = &configEnableFreeCamera},
+    {.name = "bettercam_invertx",              .type = CONFIG_TYPE_BOOL, .boolValue = &configFreeCameraInvertX},
+    {.name = "bettercam_inverty",              .type = CONFIG_TYPE_BOOL, .boolValue = &configFreeCameraInvertY},
     {.name = "bettercam_analog",               .type = CONFIG_TYPE_BOOL, .boolValue = &configFreeCameraAnalog},
     {.name = "bettercam_centering",            .type = CONFIG_TYPE_BOOL, .boolValue = &configFreeCameraLCentering},
     {.name = "bettercam_dpad",                 .type = CONFIG_TYPE_BOOL, .boolValue = &configFreeCameraDPadBehavior},
@@ -295,14 +303,13 @@ static const struct ConfigOption options[] = {
     {.name = "bettercam_degrade",              .type = CONFIG_TYPE_UINT, .uintValue = &configFreeCameraDegrade},
     // romhack camera settings
     {.name = "romhackcam_enable",              .type = CONFIG_TYPE_UINT, .uintValue = &configEnableRomhackCamera},
+    {.name = "romhackcam_invertx",             .type = CONFIG_TYPE_BOOL, .boolValue = &configRomhackCameraInvertX},
     {.name = "romhackcam_bowser",              .type = CONFIG_TYPE_BOOL, .boolValue = &configRomhackCameraBowserFights},
     {.name = "romhackcam_collision",           .type = CONFIG_TYPE_BOOL, .boolValue = &configRomhackCameraHasCollision},
     {.name = "romhackcam_centering",           .type = CONFIG_TYPE_BOOL, .boolValue = &configRomhackCameraHasCentering},
     {.name = "romhackcam_dpad",                .type = CONFIG_TYPE_BOOL, .boolValue = &configRomhackCameraDPadBehavior},
     {.name = "romhackcam_slowfall",            .type = CONFIG_TYPE_BOOL, .boolValue = &configRomhackCameraSlowFall},
     // common camera settings
-    {.name = "bettercam_invertx",              .type = CONFIG_TYPE_BOOL, .boolValue = &configCameraInvertX},
-    {.name = "bettercam_inverty",              .type = CONFIG_TYPE_BOOL, .boolValue = &configCameraInvertY},
     {.name = "romhackcam_toxic_gas",           .type = CONFIG_TYPE_BOOL, .boolValue = &configCameraToxicGas},
     // debug
     {.name = "debug_offset",                   .type = CONFIG_TYPE_U64,  .u64Value    = &gPcDebug.bhvOffset},

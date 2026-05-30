@@ -96,6 +96,7 @@ typedef void (*SoloApplyFn)(void);
 typedef void (*SoloChangeFn)(const struct SoloOption *opt, s32 dir);
 typedef const char *(*SoloValueFn)(const struct SoloOption *opt, char *buf, size_t size);
 typedef bool (*SoloEnabledFn)(const struct SoloOption *opt);
+typedef bool (*SoloVisibleFn)(const struct SoloOption *opt);
 
 struct SoloOption {
     const char *label;
@@ -113,6 +114,7 @@ struct SoloOption {
     SoloChangeFn change;
     SoloValueFn valueText;
     SoloEnabledFn enabled;
+    SoloVisibleFn visible;
 };
 
 struct SoloMenu {
@@ -175,9 +177,10 @@ static const struct SoloChoice sBoolChoices[] = {
     { "ON",  1 },
 };
 
-static const struct SoloChoice sRomhackCameraChoices[] = {
-    { "OFF",  2 },
-    { "ON",   1 },
+enum SoloCameraMode {
+    SOLO_CAMERA_MODE_CLASSIC,
+    SOLO_CAMERA_MODE_FREE,
+    SOLO_CAMERA_MODE_ROMHACK,
 };
 
 static const struct SoloChoice sFramerateChoices[] = {
@@ -295,15 +298,11 @@ static bool solo_frame_limit_enabled(UNUSED const struct SoloOption *opt) {
     return configFramerateMode == RRM_MANUAL;
 }
 
-static bool solo_free_camera_options_enabled(UNUSED const struct SoloOption *opt) {
+static bool solo_free_camera_options_visible(UNUSED const struct SoloOption *opt) {
     return configEnableFreeCamera;
 }
 
-static bool solo_romhack_camera_toggle_enabled(UNUSED const struct SoloOption *opt) {
-    return !configEnableFreeCamera;
-}
-
-static bool solo_romhack_camera_options_enabled(UNUSED const struct SoloOption *opt) {
+static bool solo_romhack_camera_options_visible(UNUSED const struct SoloOption *opt) {
     return !configEnableFreeCamera && configEnableRomhackCamera == RCE_ON;
 }
 
@@ -434,12 +433,38 @@ static const char *solo_msaa_value(UNUSED const struct SoloOption *opt, char *bu
     return buf;
 }
 
-static const char *solo_romhack_camera_value(UNUSED const struct SoloOption *opt, UNUSED char *buf, UNUSED size_t size) {
-    return configEnableRomhackCamera == RCE_ON ? "ON" : "OFF";
+static enum SoloCameraMode solo_camera_mode(void) {
+    if (configEnableFreeCamera) {
+        return SOLO_CAMERA_MODE_FREE;
+    }
+    if (configEnableRomhackCamera == RCE_ON) {
+        return SOLO_CAMERA_MODE_ROMHACK;
+    }
+    return SOLO_CAMERA_MODE_CLASSIC;
 }
 
-static void solo_change_free_camera(const struct SoloOption *opt, UNUSED s32 dir) {
-    configEnableFreeCamera = !configEnableFreeCamera;
+static void solo_set_camera_mode(enum SoloCameraMode mode) {
+    configEnableFreeCamera = mode == SOLO_CAMERA_MODE_FREE;
+    configEnableRomhackCamera = mode == SOLO_CAMERA_MODE_ROMHACK ? RCE_ON : RCE_OFF;
+}
+
+static const char *solo_camera_mode_value(UNUSED const struct SoloOption *opt, UNUSED char *buf, UNUSED size_t size) {
+    switch (solo_camera_mode()) {
+        case SOLO_CAMERA_MODE_FREE: return "FREE";
+        case SOLO_CAMERA_MODE_ROMHACK: return "ROMHACK";
+        default: return "CLASSIC";
+    }
+}
+
+static void solo_change_camera_mode(const struct SoloOption *opt, s32 dir) {
+    s32 mode = solo_camera_mode() + dir;
+    if (mode < SOLO_CAMERA_MODE_CLASSIC) {
+        mode = SOLO_CAMERA_MODE_ROMHACK;
+    } else if (mode > SOLO_CAMERA_MODE_ROMHACK) {
+        mode = SOLO_CAMERA_MODE_CLASSIC;
+    }
+
+    solo_set_camera_mode(mode);
     if (opt->apply) { opt->apply(); }
 }
 
@@ -542,11 +567,6 @@ static void solo_change_msaa(const struct SoloOption *opt, s32 dir) {
     if (opt->apply) { opt->apply(); }
 }
 
-static void solo_change_romhack_camera(const struct SoloOption *opt, UNUSED s32 dir) {
-    configEnableRomhackCamera = configEnableRomhackCamera == RCE_ON ? RCE_OFF : RCE_ON;
-    if (opt->apply) { opt->apply(); }
-}
-
 static void solo_change_bind_slot(UNUSED const struct SoloOption *opt, s32 dir) {
     s32 index = sBindIndex + dir;
     if (index < 0) {
@@ -562,8 +582,12 @@ static bool solo_option_is_enabled(const struct SoloOption *opt) {
     return opt->enabled == NULL || opt->enabled(opt);
 }
 
+static bool solo_option_is_visible(const struct SoloOption *opt) {
+    return opt->visible == NULL || opt->visible(opt);
+}
+
 static bool solo_option_is_selectable(const struct SoloOption *opt) {
-    return opt->type != SOLO_OPT_HEADER && solo_option_is_enabled(opt);
+    return solo_option_is_visible(opt) && opt->type != SOLO_OPT_HEADER && solo_option_is_enabled(opt);
 }
 
 static void solo_change_option(const struct SoloOption *opt, s32 dir) {
@@ -850,6 +874,26 @@ static s16 solo_menu_row_min(const struct SoloMenu *menu) {
     return menu == &sMenuMain ? 20 : SOLO_OPT_SUBMENU_ROW_MIN;
 }
 
+static s8 solo_menu_visible_count(const struct SoloMenu *menu) {
+    s8 count = 0;
+    for (s8 i = 0; i < menu->optCount; i++) {
+        if (solo_option_is_visible(&menu->opts[i])) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static s8 solo_menu_visible_index(const struct SoloMenu *menu, s8 optIndex) {
+    s8 visibleIndex = 0;
+    for (s8 i = 0; i < menu->optCount; i++) {
+        if (!solo_option_is_visible(&menu->opts[i])) { continue; }
+        if (i == optIndex) { return visibleIndex; }
+        visibleIndex++;
+    }
+    return 0;
+}
+
 static s8 solo_menu_rendered_count(const struct SoloMenu *menu) {
     s16 rowStart = solo_menu_row_start(menu);
     s16 rowStep = solo_menu_row_step(menu);
@@ -858,7 +902,7 @@ static s8 solo_menu_rendered_count(const struct SoloMenu *menu) {
 }
 
 static s8 solo_menu_max_scroll(const struct SoloMenu *menu) {
-    s8 maxScroll = menu->optCount - solo_menu_rendered_count(menu);
+    s8 maxScroll = solo_menu_visible_count(menu) - solo_menu_rendered_count(menu);
     return maxScroll > 0 ? maxScroll : 0;
 }
 
@@ -914,7 +958,7 @@ static void solo_draw_menu(void) {
     s16 rowStep = solo_menu_row_step(sCurrentMenu);
     s16 rowMin = solo_menu_row_min(sCurrentMenu);
 
-    if (sCurrentMenu->optCount > renderedCount) {
+    if (solo_menu_visible_count(sCurrentMenu) > renderedCount) {
         s16 scrollbarX1 = solo_menu_scrollbar_x1(sCurrentMenu);
         s16 scrollbarX2 = solo_menu_scrollbar_x2(sCurrentMenu);
         s16 scrollbarY1 = solo_menu_scrollbar_y1(sCurrentMenu);
@@ -928,11 +972,15 @@ static void solo_draw_menu(void) {
     gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 80, SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    s8 visibleIndex = 0;
     for (s8 i = 0; i < sCurrentMenu->optCount; i++) {
-        s16 y = rowStart - rowStep * i + sCurrentMenu->scroll * rowStep;
+        const struct SoloOption *opt = &sCurrentMenu->opts[i];
+        if (!solo_option_is_visible(opt)) { continue; }
+
+        s16 y = rowStart - rowStep * visibleIndex + sCurrentMenu->scroll * rowStep;
+        visibleIndex++;
         if (y > rowStart || y <= rowMin) { continue; }
 
-        const struct SoloOption *opt = &sCurrentMenu->opts[i];
         bool selected = sCurrentMenu->select == i;
         bool enabled = solo_option_is_enabled(opt);
         char valueBuf[SOLO_OPT_BUF_SIZE];
@@ -994,7 +1042,26 @@ static void solo_move_selection(s32 dir) {
         }
     } while (!solo_option_is_selectable(&menu->opts[menu->select]));
 
-    menu->scroll = menu->select - centerOffset;
+    menu->scroll = solo_menu_visible_index(menu, menu->select) - centerOffset;
+    if (menu->scroll < 0) { menu->scroll = 0; }
+    if (menu->scroll > maxScroll) { menu->scroll = maxScroll; }
+}
+
+static void solo_sync_selection(void) {
+    struct SoloMenu *menu = (struct SoloMenu *)sCurrentMenu;
+    s8 centerOffset = solo_menu_scroll_center_offset(menu);
+    s8 maxScroll = solo_menu_max_scroll(menu);
+
+    if (!solo_option_is_selectable(&menu->opts[menu->select])) {
+        for (s8 i = 0; i < menu->optCount; i++) {
+            if (solo_option_is_selectable(&menu->opts[i])) {
+                menu->select = i;
+                break;
+            }
+        }
+    }
+
+    menu->scroll = solo_menu_visible_index(menu, menu->select) - centerOffset;
     if (menu->scroll < 0) { menu->scroll = 0; }
     if (menu->scroll > maxScroll) { menu->scroll = maxScroll; }
 }
@@ -1019,6 +1086,8 @@ static void solo_reset_repeat(void) {
 }
 
 static void solo_update_open_menu(void) {
+    solo_sync_selection();
+
     if (sBindingOption != NULL) {
         u32 key = controller_get_raw_key();
         if (key != VK_INVALID) {
@@ -1084,28 +1153,27 @@ static const struct SoloOption sPlayerOptions[] = {
 };
 
 static const struct SoloOption sCameraOptions[] = {
-    { "Free Camera",      SOLO_OPT_BOOL,   .bval = &configEnableFreeCamera, .apply = solo_camera_apply, .change = solo_change_free_camera },
-    { "Romhack Camera",   SOLO_OPT_CHOICE, .uval = &configEnableRomhackCamera, .choices = sRomhackCameraChoices, .choiceCount = ARRAY_COUNT(sRomhackCameraChoices), .apply = solo_camera_apply, .change = solo_change_romhack_camera, .valueText = solo_romhack_camera_value, .enabled = solo_romhack_camera_toggle_enabled },
-    { .label = "Free Camera Options", .type = SOLO_OPT_HEADER, .enabled = solo_free_camera_options_enabled },
-    { "Invert X",         SOLO_OPT_BOOL,  .bval = &configFreeCameraInvertX, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Invert Y",         SOLO_OPT_BOOL,  .bval = &configFreeCameraInvertY, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Analog Input",     SOLO_OPT_BOOL,  .bval = &configFreeCameraAnalog, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Mouse Look",       SOLO_OPT_BOOL,  .bval = &configFreeCameraMouse, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "L Centering",      SOLO_OPT_BOOL,  .bval = &configFreeCameraLCentering, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Use D-Pad",        SOLO_OPT_BOOL,  .bval = &configFreeCameraDPadBehavior, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Collision",        SOLO_OPT_BOOL,  .bval = &configFreeCameraHasCollision, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "X Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraXSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Y Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraYSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Aggression",       SOLO_OPT_RANGE, .uval = &configFreeCameraAggr, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Pan Level",        SOLO_OPT_RANGE, .uval = &configFreeCameraPan, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { "Deceleration",     SOLO_OPT_RANGE, .uval = &configFreeCameraDegrade, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .enabled = solo_free_camera_options_enabled },
-    { .label = "Romhack Camera Options", .type = SOLO_OPT_HEADER, .enabled = solo_romhack_camera_options_enabled },
-    { "Invert X",         SOLO_OPT_BOOL,   .bval = &configRomhackCameraInvertX, .apply = solo_camera_apply, .enabled = solo_romhack_camera_options_enabled },
-    { "Bowser Fights",    SOLO_OPT_BOOL,   .bval = &configRomhackCameraBowserFights, .apply = solo_camera_apply, .enabled = solo_romhack_camera_options_enabled },
-    { "Collision",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraHasCollision, .apply = solo_camera_apply, .enabled = solo_romhack_camera_options_enabled },
-    { "L Centering",      SOLO_OPT_BOOL,   .bval = &configRomhackCameraHasCentering, .apply = solo_camera_apply, .enabled = solo_romhack_camera_options_enabled },
-    { "Use D-Pad",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraDPadBehavior, .apply = solo_camera_apply, .enabled = solo_romhack_camera_options_enabled },
-    { "Slow Fall",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraSlowFall, .apply = solo_camera_apply, .enabled = solo_romhack_camera_options_enabled },
+    { "Camera",           SOLO_OPT_CHOICE, .apply = solo_camera_apply, .change = solo_change_camera_mode, .valueText = solo_camera_mode_value },
+    { .label = "Free Camera Options", .type = SOLO_OPT_HEADER, .visible = solo_free_camera_options_visible },
+    { "Invert X",         SOLO_OPT_BOOL,  .bval = &configFreeCameraInvertX, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Invert Y",         SOLO_OPT_BOOL,  .bval = &configFreeCameraInvertY, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Analog Input",     SOLO_OPT_BOOL,  .bval = &configFreeCameraAnalog, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Mouse Look",       SOLO_OPT_BOOL,  .bval = &configFreeCameraMouse, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "L Centering",      SOLO_OPT_BOOL,  .bval = &configFreeCameraLCentering, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Use D-Pad",        SOLO_OPT_BOOL,  .bval = &configFreeCameraDPadBehavior, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Collision",        SOLO_OPT_BOOL,  .bval = &configFreeCameraHasCollision, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "X Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraXSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Y Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraYSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Aggression",       SOLO_OPT_RANGE, .uval = &configFreeCameraAggr, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Pan Level",        SOLO_OPT_RANGE, .uval = &configFreeCameraPan, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Deceleration",     SOLO_OPT_RANGE, .uval = &configFreeCameraDegrade, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { .label = "Romhack Camera Options", .type = SOLO_OPT_HEADER, .visible = solo_romhack_camera_options_visible },
+    { "Invert X",         SOLO_OPT_BOOL,   .bval = &configRomhackCameraInvertX, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
+    { "Bowser Fights",    SOLO_OPT_BOOL,   .bval = &configRomhackCameraBowserFights, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
+    { "Collision",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraHasCollision, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
+    { "L Centering",      SOLO_OPT_BOOL,   .bval = &configRomhackCameraHasCentering, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
+    { "Use D-Pad",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraDPadBehavior, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
+    { "Slow Fall",        SOLO_OPT_BOOL,   .bval = &configRomhackCameraSlowFall, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
 };
 
 static const struct SoloOption sControlsOptions[] = {

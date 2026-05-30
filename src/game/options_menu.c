@@ -44,7 +44,8 @@
 #define SOLO_OPT_SCROLLBAR_SUBMENU_X1 304
 #define SOLO_OPT_SCROLLBAR_SUBMENU_X2 312
 #define SOLO_OPT_SCROLLBAR_SUBMENU_Y1 84
-#define SOLO_OPT_SCROLLBAR_THUMB_HEIGHT 36
+#define SOLO_OPT_SCROLLBAR_THUMB_INSET 1
+#define SOLO_OPT_SCROLLBAR_THUMB_MIN_HEIGHT 23
 #define SOLO_OPT_TEXT_HEIGHT 16
 #define SOLO_OPT_BIND_SLOT_1_LEFT_X 138
 #define SOLO_OPT_BIND_SLOT_2_CENTER_X 202
@@ -928,6 +929,17 @@ static s16 solo_menu_scrollbar_y2(const struct SoloMenu *menu, s16 rowStep, s8 v
     return solo_menu_scrollbar_y1(menu) + rowStep * (visibleCount - 1) + SOLO_OPT_TEXT_HEIGHT;
 }
 
+static s16 solo_menu_scrollbar_thumb_height(s16 scrollbarHeight, s8 maxScroll) {
+    s16 thumbHeight = scrollbarHeight / (maxScroll + 1);
+    if (thumbHeight < SOLO_OPT_SCROLLBAR_THUMB_MIN_HEIGHT) {
+        thumbHeight = SOLO_OPT_SCROLLBAR_THUMB_MIN_HEIGHT;
+    }
+    if (thumbHeight > scrollbarHeight) {
+        thumbHeight = scrollbarHeight;
+    }
+    return thumbHeight;
+}
+
 static bool solo_option_has_adjustable_value(const struct SoloOption *opt) {
     return opt->type == SOLO_OPT_BOOL
         || opt->type == SOLO_OPT_CHOICE
@@ -958,15 +970,24 @@ static void solo_draw_menu(void) {
     s16 rowStep = solo_menu_row_step(sCurrentMenu);
     s16 rowMin = solo_menu_row_min(sCurrentMenu);
 
-    if (solo_menu_visible_count(sCurrentMenu) > renderedCount) {
+    s8 visibleCount = solo_menu_visible_count(sCurrentMenu);
+    s8 maxScroll = solo_menu_max_scroll(sCurrentMenu);
+    if (visibleCount > renderedCount) {
         s16 scrollbarX1 = solo_menu_scrollbar_x1(sCurrentMenu);
         s16 scrollbarX2 = solo_menu_scrollbar_x2(sCurrentMenu);
         s16 scrollbarY1 = solo_menu_scrollbar_y1(sCurrentMenu);
         s16 scrollbarY2 = solo_menu_scrollbar_y2(sCurrentMenu, rowStep, renderedCount);
-        s16 scrollTrack = scrollbarY2 - scrollbarY1 - SOLO_OPT_SCROLLBAR_THUMB_HEIGHT;
-        s16 scrollpos = scrollTrack * ((f32)sCurrentMenu->scroll / solo_menu_max_scroll(sCurrentMenu));
+        s16 thumbHeight = solo_menu_scrollbar_thumb_height(scrollbarY2 - scrollbarY1, maxScroll);
+        s16 scrollTrack = scrollbarY2 - scrollbarY1 - thumbHeight;
+        s16 scrollpos = scrollTrack * ((f32)sCurrentMenu->scroll / maxScroll);
         solo_draw_box(scrollbarX1, scrollbarY1, scrollbarX2, scrollbarY2, 0x80, 0x80, 0x80);
-        solo_draw_box(scrollbarX1, scrollbarY1 + scrollpos, scrollbarX2, scrollbarY1 + scrollpos + SOLO_OPT_SCROLLBAR_THUMB_HEIGHT, 0xFF, 0xFF, 0xFF);
+        solo_draw_box(
+            scrollbarX1 + SOLO_OPT_SCROLLBAR_THUMB_INSET,
+            scrollbarY1 + scrollpos + SOLO_OPT_SCROLLBAR_THUMB_INSET,
+            scrollbarX2 - SOLO_OPT_SCROLLBAR_THUMB_INSET,
+            scrollbarY1 + scrollpos + thumbHeight - SOLO_OPT_SCROLLBAR_THUMB_INSET,
+            0xFF, 0xFF, 0xFF
+        );
     }
 
     gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);

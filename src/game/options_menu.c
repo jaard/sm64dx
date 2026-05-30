@@ -363,8 +363,8 @@ static void solo_open_djui(SoloPanelCreateFn createPanel) {
 }
 
 static void solo_open_player_panel(void) { solo_open_djui(djui_panel_player_create); }
-static void solo_open_controls_panel(void) { solo_open_djui(djui_panel_controls_create); }
-static void solo_open_sound_panel(void) { solo_open_djui(djui_panel_sound_create); }
+// static void solo_open_controls_panel(void) { solo_open_djui(djui_panel_controls_create); }
+// static void solo_open_sound_panel(void) { solo_open_djui(djui_panel_sound_create); }
 
 static void solo_restore_default_binds(void) {
     for (u8 i = 0; i < ARRAY_COUNT(sDefaultN64Binds); i++) {
@@ -1194,7 +1194,7 @@ static const struct SoloOption sControlsOptions[] = {
     { "Stick Deadzone",  SOLO_OPT_RANGE,  .uval = &configStickDeadzone, .min = 0, .max = 100, .step = 5 },
     { "Rumble",          SOLO_OPT_RANGE,  .uval = &configRumbleStrength, .min = 0, .max = 100, .step = 5 },
     { "Restore Defaults", SOLO_OPT_ACTION, .action = solo_restore_default_binds },
-    { "Control Options",  SOLO_OPT_ACTION, .action = solo_open_controls_panel },
+    // // { "Control Options",  SOLO_OPT_ACTION, .action = solo_open_controls_panel },
 };
 
 static const struct SoloOption sDisplayOptions[] = {
@@ -1217,7 +1217,7 @@ static const struct SoloOption sSoundOptions[] = {
     { "Environment",            SOLO_OPT_RANGE,  .uval = &configEnvVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
     { "Fade Distant Sounds",    SOLO_OPT_BOOL,   .bval = &configFadeoutDistantSounds },
     { "Mute Unfocused Window",  SOLO_OPT_BOOL,   .bval = &configMuteFocusLoss },
-    { "Sound Options",          SOLO_OPT_ACTION, .action = solo_open_sound_panel },
+    // { "Sound Options",          SOLO_OPT_ACTION, .action = solo_open_sound_panel },
 };
 
 static struct SoloMenu sMenuMain = { "OPTIONS", sMainOptions, ARRAY_COUNT(sMainOptions), 0, 0, NULL };

@@ -495,7 +495,8 @@ static void solo_change_choice(const struct SoloOption *opt, s32 dir) {
 }
 
 static void solo_change_range(const struct SoloOption *opt, s32 dir) {
-    s32 value = *opt->uval + opt->step * dir;
+    s32 step = opt->step > 0 ? opt->step : 1;
+    s32 value = *opt->uval + step * dir;
     if (value < opt->min) {
         value = opt->max;
     } else if (value > opt->max) {
@@ -1183,11 +1184,11 @@ static const struct SoloOption sCameraOptions[] = {
     { "L Centering",      SOLO_OPT_BOOL,  .bval = &configFreeCameraLCentering, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
     { "Use D-Pad",        SOLO_OPT_BOOL,  .bval = &configFreeCameraDPadBehavior, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
     { "Collision",        SOLO_OPT_BOOL,  .bval = &configFreeCameraHasCollision, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
-    { "X Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraXSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
-    { "Y Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraYSens, .min = 1, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
-    { "Aggression",       SOLO_OPT_RANGE, .uval = &configFreeCameraAggr, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
-    { "Pan Level",        SOLO_OPT_RANGE, .uval = &configFreeCameraPan, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
-    { "Deceleration",     SOLO_OPT_RANGE, .uval = &configFreeCameraDegrade, .min = 0, .max = 100, .step = 5, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "X Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraXSens, .min = 1, .max = 100, .step = 1, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Y Sensitivity",    SOLO_OPT_RANGE, .uval = &configFreeCameraYSens, .min = 1, .max = 100, .step = 1, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Aggression",       SOLO_OPT_RANGE, .uval = &configFreeCameraAggr, .min = 0, .max = 100, .step = 1, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Pan Level",        SOLO_OPT_RANGE, .uval = &configFreeCameraPan, .min = 0, .max = 100, .step = 1, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
+    { "Deceleration",     SOLO_OPT_RANGE, .uval = &configFreeCameraDegrade, .min = 0, .max = 100, .step = 1, .apply = solo_camera_apply, .visible = solo_free_camera_options_visible },
     { .label = "Romhack Camera Options", .type = SOLO_OPT_HEADER, .visible = solo_romhack_camera_options_visible },
     { "Invert X",         SOLO_OPT_BOOL,   .bval = &configRomhackCameraInvertX, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
     { "Bowser Fights",    SOLO_OPT_BOOL,   .bval = &configRomhackCameraBowserFights, .apply = solo_camera_apply, .visible = solo_romhack_camera_options_visible },
@@ -1212,8 +1213,8 @@ static const struct SoloOption sControlsOptions[] = {
     { "Stick Down",      SOLO_OPT_BIND,   .uval = configKeyStickDown },
     { "Stick Left",      SOLO_OPT_BIND,   .uval = configKeyStickLeft },
     { "Stick Right",     SOLO_OPT_BIND,   .uval = configKeyStickRight },
-    { "Stick Deadzone",  SOLO_OPT_RANGE,  .uval = &configStickDeadzone, .min = 0, .max = 100, .step = 5 },
-    { "Rumble",          SOLO_OPT_RANGE,  .uval = &configRumbleStrength, .min = 0, .max = 100, .step = 5 },
+    { "Stick Deadzone",  SOLO_OPT_RANGE,  .uval = &configStickDeadzone, .min = 0, .max = 100, .step = 1 },
+    { "Rumble",          SOLO_OPT_RANGE,  .uval = &configRumbleStrength, .min = 0, .max = 100, .step = 1 },
     { "Restore Defaults", SOLO_OPT_ACTION, .action = solo_restore_default_binds },
     // // { "Control Options",  SOLO_OPT_ACTION, .action = solo_open_controls_panel },
 };
@@ -1232,10 +1233,10 @@ static const struct SoloOption sDisplayOptions[] = {
 };
 
 static const struct SoloOption sSoundOptions[] = {
-    { "Master",                 SOLO_OPT_RANGE,  .uval = &configMasterVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Music",                  SOLO_OPT_RANGE,  .uval = &configMusicVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Sfx",                    SOLO_OPT_RANGE,  .uval = &configSfxVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
-    { "Environment",            SOLO_OPT_RANGE,  .uval = &configEnvVolume, .min = 0, .max = 127, .step = 8, .apply = solo_sound_apply },
+    { "Master",                 SOLO_OPT_RANGE,  .uval = &configMasterVolume, .min = 0, .max = 127, .step = 1, .apply = solo_sound_apply },
+    { "Music",                  SOLO_OPT_RANGE,  .uval = &configMusicVolume, .min = 0, .max = 127, .step = 1, .apply = solo_sound_apply },
+    { "Sfx",                    SOLO_OPT_RANGE,  .uval = &configSfxVolume, .min = 0, .max = 127, .step = 1, .apply = solo_sound_apply },
+    { "Environment",            SOLO_OPT_RANGE,  .uval = &configEnvVolume, .min = 0, .max = 127, .step = 1, .apply = solo_sound_apply },
     { "Fade Distant Sounds",    SOLO_OPT_BOOL,   .bval = &configFadeoutDistantSounds },
     { "Mute Unfocused Window",  SOLO_OPT_BOOL,   .bval = &configMuteFocusLoss },
     // { "Sound Options",          SOLO_OPT_ACTION, .action = solo_open_sound_panel },

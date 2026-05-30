@@ -929,8 +929,8 @@ static s16 solo_menu_scrollbar_y2(const struct SoloMenu *menu, s16 rowStep, s8 v
     return solo_menu_scrollbar_y1(menu) + rowStep * (visibleCount - 1) + SOLO_OPT_TEXT_HEIGHT;
 }
 
-static s16 solo_menu_scrollbar_thumb_height(s16 scrollbarHeight, s8 maxScroll) {
-    s16 thumbHeight = scrollbarHeight / (maxScroll + 1);
+static s16 solo_menu_scrollbar_thumb_height(s16 scrollbarHeight, s8 renderedCount, s8 visibleCount) {
+    s16 thumbHeight = scrollbarHeight * renderedCount / visibleCount;
     if (thumbHeight < SOLO_OPT_SCROLLBAR_THUMB_MIN_HEIGHT) {
         thumbHeight = SOLO_OPT_SCROLLBAR_THUMB_MIN_HEIGHT;
     }
@@ -977,7 +977,7 @@ static void solo_draw_menu(void) {
         s16 scrollbarX2 = solo_menu_scrollbar_x2(sCurrentMenu);
         s16 scrollbarY1 = solo_menu_scrollbar_y1(sCurrentMenu);
         s16 scrollbarY2 = solo_menu_scrollbar_y2(sCurrentMenu, rowStep, renderedCount);
-        s16 thumbHeight = solo_menu_scrollbar_thumb_height(scrollbarY2 - scrollbarY1, maxScroll);
+        s16 thumbHeight = solo_menu_scrollbar_thumb_height(scrollbarY2 - scrollbarY1, renderedCount, visibleCount);
         s16 scrollTrack = scrollbarY2 - scrollbarY1 - thumbHeight;
         s16 scrollpos = scrollTrack * ((f32)sCurrentMenu->scroll / maxScroll);
         solo_draw_box(scrollbarX1, scrollbarY1, scrollbarX2, scrollbarY2, 0x80, 0x80, 0x80);

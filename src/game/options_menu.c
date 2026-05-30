@@ -35,6 +35,12 @@
 #define SOLO_OPT_VALUE_RIGHT_X 280
 #define SOLO_OPT_VALUE_SYMBOL_GAP 8
 #define SOLO_OPT_VALUE_SYMBOL_WIDTH 8
+#define SOLO_OPT_RANGE_VALUE_DIGITS_WIDTH 30
+#define SOLO_OPT_RANGE_BAR_VALUE_GAP 2
+#define SOLO_OPT_RANGE_BAR_WIDTH 76
+#define SOLO_OPT_RANGE_BAR_HEIGHT 8
+#define SOLO_OPT_RANGE_BAR_X2 (SOLO_OPT_VALUE_RIGHT_X - SOLO_OPT_RANGE_VALUE_DIGITS_WIDTH - SOLO_OPT_RANGE_BAR_VALUE_GAP)
+#define SOLO_OPT_RANGE_BAR_X1 (SOLO_OPT_RANGE_BAR_X2 - SOLO_OPT_RANGE_BAR_WIDTH)
 #define SOLO_OPT_USE_CUSTOM_VALUE_ARROWS 1
 #define SOLO_OPT_SUBMENU_ROW_START 140
 #define SOLO_OPT_SUBMENU_ROW_STEP 24
@@ -664,6 +670,52 @@ static void solo_draw_box(s16 x1, s16 y1, s16 x2, s16 y2, u8 r, u8 g, u8 b) {
     gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
 }
 
+static void solo_draw_range_bar(const struct SoloOption *opt, s16 y, bool selected, bool enabled) {
+    s32 value = *opt->uval;
+    s32 range = opt->max - opt->min;
+    s16 barWidth = SOLO_OPT_RANGE_BAR_X2 - SOLO_OPT_RANGE_BAR_X1;
+    s16 fillWidth = barWidth - (SOLO_OPT_SCROLLBAR_THUMB_INSET * 2);
+    s16 barY1 = SCREEN_HEIGHT - y - ((SOLO_OPT_TEXT_HEIGHT + SOLO_OPT_RANGE_BAR_HEIGHT) / 2);
+    s16 barY2 = barY1 + SOLO_OPT_RANGE_BAR_HEIGHT;
+    s16 fillX1 = SOLO_OPT_RANGE_BAR_X1 + SOLO_OPT_SCROLLBAR_THUMB_INSET;
+    u8 fillR = 0xFF;
+    u8 fillG = 0xFF;
+    u8 fillB = 0xFF;
+
+    if (!enabled) {
+        fillR = SOLO_COLOR_DISABLED_R;
+        fillG = SOLO_COLOR_DISABLED_G;
+        fillB = SOLO_COLOR_DISABLED_B;
+    } else if (selected) {
+        fillR = SOLO_COLOR_SELECTED_R;
+        fillG = SOLO_COLOR_SELECTED_G;
+        fillB = SOLO_COLOR_SELECTED_B;
+    }
+
+    if (range > 0) {
+        if (value < opt->min) { value = opt->min; }
+        if (value > opt->max) { value = opt->max; }
+        fillWidth = ((barWidth - (SOLO_OPT_SCROLLBAR_THUMB_INSET * 2)) * (value - opt->min)) / range;
+    }
+
+    solo_draw_box(SOLO_OPT_RANGE_BAR_X1, barY1, SOLO_OPT_RANGE_BAR_X2, barY2, 0x80, 0x80, 0x80);
+    if (fillWidth > 0) {
+        s16 fillX2 = fillX1 + fillWidth;
+        if (fillX2 < fillX1 + 1) {
+            fillX2 = fillX1 + 1;
+        }
+        solo_draw_box(
+            fillX1,
+            barY1 + SOLO_OPT_SCROLLBAR_THUMB_INSET,
+            fillX2,
+            barY2 - SOLO_OPT_SCROLLBAR_THUMB_INSET,
+            fillR,
+            fillG,
+            fillB
+        );
+    }
+}
+
 static void solo_draw_custom_value_marker_texture(s16 x, s16 y, bool right, u8 r, u8 g, u8 b) {
     const Texture *texture = right ? sSoloArrowSymbolRightTexture : sSoloArrowSymbolLeftTexture;
 
@@ -963,6 +1015,16 @@ static void solo_draw_selected_value_symbols(s16 rightX, s16 y, const char *valu
     }
 }
 
+static void solo_draw_selected_range_symbols(s16 rightX, s16 y, struct SoloTextColor color) {
+    if (SOLO_OPT_USE_CUSTOM_VALUE_ARROWS) {
+        solo_draw_custom_value_marker(SOLO_OPT_RANGE_BAR_X1 - SOLO_OPT_VALUE_SYMBOL_GAP - SOLO_OPT_VALUE_SYMBOL_WIDTH, y, false, color);
+        solo_draw_custom_value_marker(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, true, color);
+    } else {
+        solo_text_left_color(SOLO_OPT_RANGE_BAR_X1 - SOLO_OPT_VALUE_SYMBOL_GAP - solo_text_width("<"), y, "<", color.r, color.g, color.b);
+        solo_text_left_color(rightX + SOLO_OPT_VALUE_SYMBOL_GAP, y, ">", color.r, color.g, color.b);
+    }
+}
+
 static void solo_draw_menu(void) {
     solo_draw_title();
 
@@ -990,6 +1052,20 @@ static void solo_draw_menu(void) {
             0xFF, 0xFF, 0xFF
         );
     }
+
+    gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 80, SCREEN_WIDTH, SCREEN_HEIGHT);
+    s8 rangeVisibleIndex = 0;
+    for (s8 i = 0; i < sCurrentMenu->optCount; i++) {
+        const struct SoloOption *opt = &sCurrentMenu->opts[i];
+        if (!solo_option_is_visible(opt)) { continue; }
+
+        s16 y = rowStart - rowStep * rangeVisibleIndex + sCurrentMenu->scroll * rowStep;
+        rangeVisibleIndex++;
+        if (y > rowStart || y <= rowMin || opt->type != SOLO_OPT_RANGE) { continue; }
+
+        solo_draw_range_bar(opt, y, sCurrentMenu->select == i, solo_option_is_enabled(opt));
+    }
+    gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 80, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -1036,7 +1112,11 @@ static void solo_draw_menu(void) {
                 solo_text_value(SOLO_OPT_VALUE_RIGHT_X, y, opt, value, selected, enabled);
             }
             if (selected && enabled && solo_option_has_adjustable_value(opt)) {
-                solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value, solo_value_color(opt, value, selected, enabled));
+                if (opt->type == SOLO_OPT_RANGE) {
+                    solo_draw_selected_range_symbols(SOLO_OPT_VALUE_RIGHT_X, y, solo_value_color(opt, value, selected, enabled));
+                } else {
+                    solo_draw_selected_value_symbols(SOLO_OPT_VALUE_RIGHT_X, y, value, solo_value_color(opt, value, selected, enabled));
+                }
             }
         }
     }
